@@ -1,381 +1,489 @@
 """
-=============================================================================
-VITAMIN D DEFICIENCY CALCULATOR
-=============================================================================
-Source of equations:
-    Diffey, B.L. (2013). "Modelling vitamin D status due to oral intake and
-    sun exposure in an adult British population."
-    British Journal of Nutrition, 110(3), pp.569–577.
-    DOI: https://doi.org/10.1017/S0007114512005466
+vitamin_d_model.py
+==================
+A computational implementation of the plasma 25(OH)D (vitamin D) model
+described in the accompanying LaTeX document, based on the pharmacokinetic
+framework of Diffey (2013), with demographic corrections from:
+  - Hilger et al. (2014) — sex independence
+  - Young (2020)         — Fitzpatrick skin-type scaling
+  - Chalcraft et al. (2020) — age-related synthesis decline
 
-Equations used from paper:
-    Eq. 1  — Total plasma 25(OH)D on day T (master equation)
-    Eq. 2  — Oral intake contribution to blood level
-    Eq. 3  — Sun/UV contribution to blood level
-    Eq. 4  — Diminishing returns factor F(T) for UV response
-    Eq. 7  — UV response function R_UV(t)
-    Eq. 9  — Oral intake response function R_oral(t)
+All equation numbers in the comments refer to the source document.
 
-Equations NOT used (and why):
-    Eq. 5 & 6 — Skipped: those estimate UV from behaviour. We have real UV data.
-    Eq. 10    — Skipped: that is for planning fixed supplements, not tracking.
-    Eq. 11    — Skipped: that is for population stats. We only have 1 person.
-
-=============================================================================
-FIXED BIOLOGICAL PARAMETERS (from Diffey 2013, do not change these)
-=============================================================================
-    f   = 0.15       fraction of vitamin D that goes into tissue storage
-    β   = 25  days   half-life of 25(OH)D in plasma (blood clearance)
-    γ   = 250 days   half-life of 25(OH)D in tissue stores (slow release)
-    α   = 0.6 days   half-time for UV-derived vitamin D to enter blood
-    α'  = 1.5 days   half-time for oral vitamin D to enter blood (gut slower)
-    A   = 0.18       UV scaling factor: nmol/L per SED per 1% body surface
-    S   = 0.023      oral scaling factor: nmol/L per µg of vitamin D
-
-=============================================================================
-EXPECTED CSV FORMAT
-=============================================================================
-Your CSV must have these columns (column names are case-insensitive):
-
-    date             — YYYY-MM-DD
-    uvi              — UV Index for the day (used to compute SED)
-    uva              — UVA irradiance (informational only, not used in model*)
-    uvb              — UVB irradiance (informational only, not used in model*)
-    oral_intake_ug   — vitamin D intake that day in micrograms (µg)
-                       1000 IU pill = 25 µg | 400 IU pill = 10 µg
-    skin_area_pct    — % of body surface area exposed to sun (0–100)
-                       face+hands only ≈ 8%
-                       + forearms      ≈ 15%
-                       + legs          ≈ 30%
-
-* NOTE on UVA vs UVB vs UVI:
-    - UVA (315–400 nm) does NOT synthesise vitamin D in skin. Not used.
-    - UVB (280–315 nm) IS responsible for vitamin D synthesis.
-    - UVI (UV Index) is an erythemal-weighted measure that correlates well
-      with UVB and is the standard metric used in the Diffey model.
-      We convert UVI → SED (Standard Erythema Dose) to match the paper.
-
-=============================================================================
+Author  : Claude (Anthropic, claude-sonnet-4-6)
+Purpose : Reference implementation for research / educational use
 """
 
-import pandas as pd
-import numpy as np
-import sys
-import os
+import math
 
 
 # =============================================================================
-# FIXED BIOLOGICAL CONSTANTS (Diffey 2013, Table in Methods section)
+# FIXED BIOLOGICAL PARAMETERS
+# (Table 1 in source document — from Diffey 2013)
 # =============================================================================
 
-f     = 0.15    # fraction of synthesised/absorbed vitamin D stored in tissue
-beta  = 25.0    # β: plasma clearance half-life (days)
-gamma = 250.0   # γ: tissue store clearance half-life (days)
-alpha = 0.6     # α: half-time for UV vitamin D uptake into plasma (days)
-alpha_prime = 1.5  # α': half-time for oral vitamin D uptake into plasma (days)
-A     = 0.18    # UV scaling factor (nmol/L per SED per 1% BSA)
-S     = 0.023   # oral scaling factor (nmol/L per µg)
-
-# Deficiency thresholds (clinical standard, referenced in Diffey 2013)
-THRESHOLD_DEFICIENT   = 25.0   # nmol/L — below this = DEFICIENT
-THRESHOLD_INSUFFICIENT = 50.0  # nmol/L — below this = INSUFFICIENT
+f      = 0.15   # Fraction of vitamin D stored in tissue (dimensionless)
+beta   = 25     # Plasma clearance half-life (days)
+gamma  = 250    # Tissue-store clearance half-life (days)
+alpha  = 0.6    # Half-time for UV-derived vitamin D uptake into plasma (days)
+alpha_ = 1.5    # Half-time for oral vitamin D uptake into plasma (days)  [alpha']
+A_uv   = 0.18   # UV scaling factor (nmol/L per SED per % body surface area)
+S      = 0.023  # Oral scaling factor (nmol/L per ug)
 
 
 # =============================================================================
-# UV INDEX → SED CONVERSION
+# DEMOGRAPHIC SCALAR FUNCTIONS
 # =============================================================================
 
-def uvi_to_sed(uvi_value, daylight_hours=12.0):
+def skin_factor(fitzpatrick_type: int) -> float:
     """
-    Convert UV Index to SED (Standard Erythema Dose).
+    Eq. 9  --  Fitzpatrick skin-type UV exposure correction factor.
 
-    SED is the UV unit used in the Diffey model (Eq. 3, 7).
-    1 SED = 100 J/m² of erythemal-weighted UV radiation.
+    Darker skin contains more melanin, which competes with 7-dehydrocholesterol
+    for UVB photons, reducing vitamin D synthesis per unit of UV dose.
+    Young (2020) found that Types III-VI require ~1.35x more UV exposure to
+    achieve equivalent synthesis compared to Types I-II, but that Types III-VI
+    are not statistically distinguishable from each other.
 
-    Method:
-        UVI × 0.025 = erythemal irradiance in W/m²
-        Assuming a triangular distribution of UV over the day peaking at noon:
-            daily energy = peak_irradiance × daylight_seconds / 2
-        Then divide by 100 to convert J/m² → SED.
+    The factor is inverted here because we want to *scale down* the effective
+    UV dose for darker skin types, with Type I-II as the baseline (= 1.0).
 
-    Parameters:
-        uvi_value      : float  — the UV Index reading for the day
-        daylight_hours : float  — hours of daylight (default 12, adjust seasonally)
+    Parameters
+    ----------
+    fitzpatrick_type : int
+        Skin type on the Fitzpatrick scale (1-6).
 
-    Returns:
-        float — daily SED value
+    Returns
+    -------
+    float
+        f_skin -- dimensionless scalar in range (0, 1].
     """
-    if uvi_value <= 0:
-        return 0.0
-    peak_irradiance_W_per_m2 = uvi_value * 0.025   # W/m² erythemal
-    daylight_seconds = daylight_hours * 3600
-    daily_J_per_m2 = peak_irradiance_W_per_m2 * daylight_seconds / 2  # triangle
-    sed = daily_J_per_m2 / 100.0
-    return sed
+    if fitzpatrick_type in (1, 2):
+        return 1.00
+    elif fitzpatrick_type in (3, 4, 5, 6):
+        return 1.0 / 1.35   # approx 0.7407
+    else:
+        raise ValueError(f"Fitzpatrick type must be 1-6, got {fitzpatrick_type}")
 
 
-# =============================================================================
-# RESPONSE FUNCTIONS (Eq. 7 and Eq. 9 from Diffey 2013)
-# =============================================================================
-
-def R_UV(t):
+def age_factor(age: float) -> float:
     """
-    UV Response Function — Eq. 7 from Diffey (2013).
+    Eq. 10  --  Age-related decline in cutaneous vitamin D synthesis.
 
-    Represents the increase in plasma 25(OH)D (nmol/L) at time t days
-    after a single UV exposure of 1 SED to 1% of body surface area.
+    Chalcraft et al. (2020) measured a ~1.3% per year decline in synthesis
+    capacity, anchored at age 20 (f_age = 1.0).  By the seventies this
+    amounts to roughly a 50% reduction relative to a 20-year-old under
+    identical UV conditions.
 
-    This is a two-compartment model:
-        - Fast compartment: (1-f) of vitamin D stays in plasma, clears with half-life β
-        - Slow compartment: f of vitamin D goes to tissue stores, clears with half-life γ
-        - Uptake delay: −2^(−t/α) subtracts until vitamin D has entered blood
+    Note: this function can return negative values for very old ages
+    (>~97 years).  Callers should clamp to [0, 1] if needed.
 
-    R_UV(t) = A × [ (1−f)×2^(−t/β) + f×2^(−t/γ) − 2^(−t/α) ]
+    Parameters
+    ----------
+    age : float
+        Subject's age in years.
 
-    Parameters:
-        t : int/float — number of days since the UV exposure
-
-    Returns:
-        float — nmol/L increase per SED per 1% BSA
+    Returns
+    -------
+    float
+        f_age -- dimensionless scalar (nominally in (0, 1] for ages 20-97).
     """
-    if t <= 0:
-        return 0.0
-    fast_compartment  = (1 - f) * (2 ** (-t / beta))    # plasma clearance
-    slow_compartment  = f       * (2 ** (-t / gamma))   # tissue store release
-    uptake_delay      =            2 ** (-t / alpha)     # absorption lag
-    return A * (fast_compartment + slow_compartment - uptake_delay)
-
-
-def R_oral(t):
-    """
-    Oral Intake Response Function — Eq. 9 from Diffey (2013).
-
-    Represents the increase in plasma 25(OH)D (nmol/L) at time t days
-    after a single oral dose of 1 µg of vitamin D (cholecalciferol).
-
-    Same structure as R_UV but:
-        - Scaled by S instead of A
-        - Uptake delay uses α' (1.5 days) instead of α (0.6 days)
-          because gut absorption is slower than skin synthesis
-
-    R_oral(t) = S × [ (1−f)×2^(−t/β) + f×2^(−t/γ) − 2^(−t/α') ]
-
-    Parameters:
-        t : int/float — number of days since the oral dose
-
-    Returns:
-        float — nmol/L increase per µg of vitamin D
-    """
-    if t <= 0:
-        return 0.0
-    fast_compartment  = (1 - f) * (2 ** (-t / beta))
-    slow_compartment  = f       * (2 ** (-t / gamma))
-    uptake_delay      =            2 ** (-t / alpha_prime)
-    return S * (fast_compartment + slow_compartment - uptake_delay)
+    return 1.0 - 0.013 * (age - 20)
 
 
 # =============================================================================
-# MAIN MODEL — runs day by day through the CSV
+# UV DOSE (SED) CALCULATOR
+# =============================================================================
+#
+# NOTE ON INPUT DATA -- UVB vs UVI vs UVA
+# ----------------------------------------
+# The model (Eq. 1) was originally written in terms of UV Index (UVI), but
+# UVI is itself *derived* from UVB: it is the erythemally-weighted UVB
+# irradiance divided by a reference value of 0.025 W/m2.  In other words:
+#
+#     UVI = E_eff (W/m2) / 0.025
+#
+# If your data source provides total daily UVB dose in J/m2, you already have
+# E_eff integrated over the day, so no daylight-hours parameter is needed.
+# The conversion to SED is then simply:
+#
+#     SED = UVB_dose (J/m2) / 100
+#
+# because by definition 1 SED = 100 J/m2 of erythemally effective UV.
+#
+# UVA (315-400 nm) plays NO meaningful role in vitamin D synthesis.
+# The photolysis of 7-dehydrocholesterol to pre-vitamin D3 requires photons
+# in the UVB range (290-315 nm).  UVA can therefore be discarded entirely.
+
+def uvb_dose_to_sed(uvb_j_per_m2: float) -> float:
+    """
+    Eq. 1 (adapted)  --  Convert daily UVB dose to Standard Erythemal Doses.
+
+    Replaces the UVI-based formulation with a direct conversion from measured
+    daily UVB irradiance (J/m2).  The two representations are equivalent
+    because UVI is defined as erythemally-weighted UVB irradiance / 0.025 W/m2,
+    so integrating over a day and dividing by 100 J/m2 per SED yields the same
+    result as Eq. 1 in the source document.
+
+    Conversion derivation:
+        1 SED  =  100 J/m2  of erythemally effective UV  (ISO 17166 definition)
+        therefore:  SED  =  UVB_dose (J/m2) / 100
+
+    UVA is excluded because it does not drive vitamin D photosynthesis; only
+    UVB photons (290-315 nm) have sufficient energy to cleave the B-ring of
+    7-dehydrocholesterol and initiate the vitamin D3 cascade.
+
+    Parameters
+    ----------
+    uvb_j_per_m2 : float
+        Total daily UVB irradiance dose in J/m2.
+
+    Returns
+    -------
+    float
+        E(t) in SED.
+    """
+    return uvb_j_per_m2 / 100.0
+
+
+# =============================================================================
+# RESPONSE FUNCTIONS  (impulse responses / Green's functions)
 # =============================================================================
 
-def run_vitamin_d_model(df):
+def R_UV(t: float) -> float:
     """
-    Simulates daily plasma 25(OH)D for one person using Diffey (2013).
+    Eq. 2  --  UV-derived vitamin D impulse response function.
 
-    Implements:
-        Eq. 2: C_oral(T)  = sum over all past days of O(t) × R_oral(T−t+1)
-        Eq. 3: C_sun(T)   = sum over all past days of E(t) × A(t) × R_UV(T−t+1)
-        Eq. 4: F(T)       = exp(−0.01 × C_total(T−1))
-        Eq. 1: C_total(T) = C_total(T−1) + ΔC_oral(T) + F(T) × ΔC_sun(T)
+    Describes the rise-and-fall kinetics of plasma 25(OH)D following a single
+    unit UV exposure (1 SED over 1% body area).  The two-exponential decay
+    captures redistribution into a slow tissue compartment (fraction f,
+    half-life gamma) alongside the faster plasma compartment (fraction 1-f,
+    half-life beta).  The negative term (half-time alpha) models the initial
+    uptake lag before pre-vitamin D3 is converted to vitamin D3 and appears
+    in plasma.
 
-    Variables per day t:
-        O(t)  = oral_intake_ug  — daily vitamin D intake in µg
-        E(t)  = SED             — UV dose in Standard Erythema Doses
-        A(t)  = skin_area_pct   — % body surface area exposed (0–100)
+    Parameters
+    ----------
+    t : float
+        Time since exposure (days).  Must be >= 0.
 
-    Parameters:
-        df : pandas DataFrame — must have columns: sed, oral_intake_ug, skin_area_pct
-
-    Returns:
-        list of float — C_total for each day
+    Returns
+    -------
+    float
+        Response in nmol/L per (SED * % body area).
     """
-    n_days = len(df)
+    return A_uv * (
+        (1 - f) * 2 ** (-t / beta)       # fast plasma compartment
+        + f     * 2 ** (-t / gamma)      # slow tissue compartment
+        - 2     ** (-t / alpha)          # uptake lag (negative)
+    )
 
-    # Pre-compute response function values for all possible time lags
-    # (avoids recomputing inside the inner loop)
-    max_lag = n_days + 1
-    r_uv_cache   = np.array([R_UV(t)   for t in range(max_lag + 1)])
-    r_oral_cache = np.array([R_oral(t) for t in range(max_lag + 1)])
 
-    C_total = np.zeros(n_days)  # total plasma 25(OH)D (nmol/L) each day
-    C_sun   = np.zeros(n_days)  # sun contribution each day
-    C_oral  = np.zeros(n_days)  # oral contribution each day
+def R_oral(t: float) -> float:
+    """
+    Eq. 3  --  Oral vitamin D impulse response function.
 
-    for T in range(n_days):
+    Analogous to R_UV but for an ingested dose.  The uptake lag uses alpha'
+    (1.5 days) rather than alpha (0.6 days), reflecting the slower
+    gastrointestinal absorption pathway compared with cutaneous synthesis.
+    The scaling factor S replaces A_uv to convert from ug to nmol/L.
 
-        # --- Eq. 2: oral contribution on day T ---
-        # Sum all past oral doses weighted by how much effect they still have today
-        oral_sum = 0.0
+    Parameters
+    ----------
+    t : float
+        Time since ingestion (days).  Must be >= 0.
+
+    Returns
+    -------
+    float
+        Response in nmol/L per ug.
+    """
+    return S * (
+        (1 - f) * 2 ** (-t / beta)       # fast plasma compartment
+        + f     * 2 ** (-t / gamma)      # slow tissue compartment
+        - 2     ** (-t / alpha_)         # uptake lag (slower for oral route)
+    )
+
+
+# =============================================================================
+# CONVOLUTION ACCUMULATORS
+# (running cumulative plasma contributions up to day T)
+# =============================================================================
+
+def compute_C_oral(oral_doses: list) -> list:
+    """
+    Eq. 4  --  Cumulative oral contribution to plasma 25(OH)D.
+
+    Computes the discrete convolution of daily oral intake O(t) with the
+    oral impulse response R_oral.  Each day's dose is spread forward in
+    time according to R_oral, and contributions from all past doses are
+    summed.
+
+        C_oral(T) = sum_{t=0}^{T}  O(t) * R_oral(T - t + 1)
+
+    The "+1" offset in the lag argument means the response on the same day
+    as ingestion uses R_oral(1), i.e. one day of processing has elapsed.
+
+    Parameters
+    ----------
+    oral_doses : list
+        O(t) for t = 0, 1, ..., N-1  (ug per day).
+
+    Returns
+    -------
+    list
+        C_oral(T) for T = 0, 1, ..., N-1  (nmol/L).
+    """
+    N = len(oral_doses)
+    C_oral = [0.0] * N
+    for T in range(N):
+        total = 0.0
         for t in range(T + 1):
-            lag = T - t + 1          # how many days ago was dose t
-            O_t = df['oral_intake_ug'].iloc[t]   # O(t): dose on day t in µg
-            oral_sum += O_t * r_oral_cache[lag]
-        C_oral[T] = oral_sum
+            lag = T - t + 1          # days since dose t was taken (>= 1)
+            total += oral_doses[t] * R_oral(lag)
+        C_oral[T] = total
+    return C_oral
 
-        # --- Eq. 3: sun contribution on day T ---
-        # Sum all past UV exposures weighted by skin area and UV response
-        sun_sum = 0.0
+
+def compute_C_sun(
+    uv_doses:    list,
+    body_areas:  list,
+    age:         float,
+    fitzpatrick: int,
+) -> list:
+    """
+    Eq. 11  --  Cumulative UV contribution to plasma 25(OH)D
+                (replaces Eq. 6 from an earlier model revision).
+
+    Extends the basic sun convolution (Eq. 6) by incorporating the two
+    demographic scalars f_age and f_skin directly into the synthesis term,
+    so that cutaneous production is modulated by age-related decline and
+    melanin-dependent UV attenuation.
+
+        C_sun(T) = sum_{t=0}^{T}  f_age * f_skin * E(t) * A(t) * R_UV(T - t + 1)
+
+    Both f_age and f_skin are time-invariant for a given subject, so they
+    are computed once and factored through the sum.
+
+    Parameters
+    ----------
+    uv_doses   : list  -- E(t) in SED for each day.
+    body_areas : list  -- A(t) in % body surface area exposed each day.
+    age        : float        -- Subject age in years (for f_age).
+    fitzpatrick: int          -- Fitzpatrick skin type 1-6 (for f_skin).
+
+    Returns
+    -------
+    list
+        C_sun(T) for T = 0, 1, ..., N-1  (nmol/L).
+    """
+    f_age_val  = age_factor(age)
+    f_skin_val = skin_factor(fitzpatrick)
+    demo_scalar = f_age_val * f_skin_val      # combined demographic multiplier
+
+    N = len(uv_doses)
+    C_sun = [0.0] * N
+    for T in range(N):
+        total = 0.0
         for t in range(T + 1):
             lag = T - t + 1
-            E_t = df['sed'].iloc[t]              # E(t): UV dose in SED
-            A_t = df['skin_area_pct'].iloc[t]    # A(t): % body surface exposed
-            sun_sum += E_t * A_t * r_uv_cache[lag]
-        C_sun[T] = sun_sum
+            total += demo_scalar * uv_doses[t] * body_areas[t] * R_UV(lag)
+        C_sun[T] = total
+    return C_sun
 
-        # --- Eq. 4: diminishing returns factor F(T) ---
-        # Higher existing blood level → less benefit from additional UV
-        C_prev = C_total[T - 1] if T > 0 else 0.0
-        F_T = np.exp(-0.01 * C_prev)
 
-        # --- Eq. 1: total plasma 25(OH)D on day T ---
-        delta_oral = C_oral[T] - (C_oral[T-1] if T > 0 else 0.0)
-        delta_sun  = C_sun[T]  - (C_sun[T-1]  if T > 0 else 0.0)
-        C_total[T] = C_prev + delta_oral + F_T * delta_sun
+# =============================================================================
+# SATURATION FACTOR
+# =============================================================================
 
-        # Clamp to 0 (blood levels can't be negative)
-        C_total[T] = max(0.0, C_total[T])
+def saturation_factor(C_total_prev: float) -> float:
+    """
+    Eq. 5  --  Diminishing-returns (saturation) factor F(T).
+
+    At high circulating 25(OH)D concentrations the body downregulates
+    further synthesis and absorption.  This is modelled as an exponential
+    decay of the UV contribution's incremental effect, parameterised so
+    that F ~= 1 at low/normal levels and decreases smoothly as levels rise.
+
+        F(T) = exp( -0.01 * C_total(T-1) )
+
+    Parameters
+    ----------
+    C_total_prev : float
+        Plasma 25(OH)D on the *previous* day, C_total(T-1)  (nmol/L).
+
+    Returns
+    -------
+    float
+        F(T) -- dimensionless, in (0, 1].
+    """
+    return math.exp(-0.01 * C_total_prev)
+
+
+# =============================================================================
+# MASTER MODEL -- total plasma 25(OH)D
+# =============================================================================
+
+def run_model(
+    oral_doses:  list,
+    uv_doses:    list,
+    body_areas:  list,
+    age:         float,
+    fitzpatrick: int,
+    C0:          float = 50.0,
+) -> list:
+    """
+    Eq. 7  --  Master equation: total plasma 25(OH)D on day T.
+
+    Integrates oral and UV contributions day-by-day, applying the saturation
+    factor F(T) to the incremental UV-derived change at each step:
+
+        C_total(T) = C_total(T-1)
+                     + [C_oral(T)  - C_oral(T-1)]
+                     + F(T) * [C_sun(T) - C_sun(T-1)]
+
+    The incremental formulation (delta rather than absolute values) means the
+    saturation factor only suppresses *new* UV-derived input, not the
+    carry-over of previously accumulated levels.
+
+    Parameters
+    ----------
+    oral_doses   : list  -- O(t) in ug for each simulation day.
+    uv_doses     : list  -- E(t) in SED for each simulation day.
+    body_areas   : list  -- A(t) in % BSA for each simulation day.
+    age          : float        -- Subject age in years.
+    fitzpatrick  : int          -- Fitzpatrick skin type 1-6.
+    C0           : float        -- Initial plasma 25(OH)D level (nmol/L).
+
+    Returns
+    -------
+    list
+        C_total(T) for T = 0, 1, ..., N-1  (nmol/L).
+    """
+    N = len(oral_doses)
+    assert len(uv_doses)   == N, "All input lists must be the same length."
+    assert len(body_areas) == N, "All input lists must be the same length."
+
+    # Pre-compute full oral and UV contribution curves (Eqs. 4 and 11)
+    C_oral = compute_C_oral(oral_doses)
+    C_sun  = compute_C_sun(uv_doses, body_areas, age, fitzpatrick)
+
+    C_total = [0.0] * N
+    for T in range(N):
+        if T == 0:
+            C_prev      = C0
+            C_oral_prev = 0.0
+            C_sun_prev  = 0.0
+        else:
+            C_prev      = C_total[T - 1]
+            C_oral_prev = C_oral[T - 1]
+            C_sun_prev  = C_sun[T - 1]
+
+        # Incremental contributions on day T
+        delta_oral = C_oral[T] - C_oral_prev
+        delta_sun  = C_sun[T]  - C_sun_prev
+
+        # Saturation factor based on previous day's level (Eq. 5)
+        F = saturation_factor(C_prev)
+
+        # Master update (Eq. 7)
+        C_total[T] = C_prev + delta_oral + F * delta_sun
 
     return C_total
 
 
 # =============================================================================
-# DEFICIENCY ASSESSMENT — single person output
+# SIMULATION RUNNER
 # =============================================================================
 
-def assess_deficiency(C_total_values, dates):
+def simulate_subject(
+    name:          str,
+    oral:          list,
+    uvb_raw_j_m2:  list,
+    body_area_pct: list,
+    age:           float,
+    fitzpatrick:   int,
+    C0:            float,
+) -> list:
     """
-    For each day, print whether the person is deficient, insufficient,
-    or sufficient — and by how much.
+    Convenience wrapper that accepts raw inputs, converts units, runs the
+    model, prints a formatted results table, and returns the daily plasma
+    25(OH)D trajectory.
 
-    Thresholds (Diffey 2013, Pearce & Cheetham cited within):
-        < 25 nmol/L  → DEFICIENT
-        < 50 nmol/L  → INSUFFICIENT
-        ≥ 50 nmol/L  → SUFFICIENT
+    This function handles the unit-conversion step between raw measured data
+    and the model's internal representation:
+        UVB (J/m2)  ->  SED    via uvb_dose_to_sed()
+
+    Body surface area is a per-day list because clothing and activity level
+    vary from day to day (e.g. indoors vs outdoors, light vs heavy clothing).
+
+    Parameters
+    ----------
+    name           : str          -- Label used in the printed header.
+    oral           : list  -- Daily oral vitamin D intake (ug/day).
+                                     1 ug = 40 IU.
+    uvb_raw_j_m2   : list  -- Daily UVB dose (J/m2).  UVA excluded.
+    body_area_pct  : list  -- Body surface area exposed per day (%).
+                                     Must be the same length as oral.
+                                     Reference values per day:
+                                       ~15%  dressed outdoors (face/hands/arms)
+                                       ~35%  t-shirt + shorts
+                                       ~80%  swimwear
+    age            : float        -- Subject age in years.
+    fitzpatrick    : int          -- Fitzpatrick skin type (1-6).
+    C0             : float        -- Initial plasma 25(OH)D (nmol/L).
+                                     WARNING: assumed if no blood test available.
+
+    Returns
+    -------
+    list
+        C_total(T) for each day T  (nmol/L).
     """
-    print("\n" + "="*65)
-    print("  VITAMIN D STATUS REPORT")
-    print("="*65)
-    print(f"  {'Date':<14} {'25(OH)D (nmol/L)':>18}  {'Status':<15} {'Gap'}")
-    print("-"*65)
+    assert len(oral) == len(uvb_raw_j_m2), (
+        f"[{name}] oral and uvb_raw_j_m2 must be the same length "
+        f"(got {len(oral)} vs {len(uvb_raw_j_m2)})"
+    )
+    assert len(oral) == len(body_area_pct), (
+        f"[{name}] oral and body_area_pct must be the same length "
+        f"(got {len(oral)} vs {len(body_area_pct)})"
+    )
 
-    for i, (date, level) in enumerate(zip(dates, C_total_values)):
-        if level < THRESHOLD_DEFICIENT:
-            status = "⚠️  DEFICIENT"
-            gap = f"{THRESHOLD_DEFICIENT - level:.1f} nmol/L below deficiency threshold"
-        elif level < THRESHOLD_INSUFFICIENT:
-            status = "⚡ INSUFFICIENT"
-            gap = f"{THRESHOLD_INSUFFICIENT - level:.1f} nmol/L below sufficient level"
-        else:
-            status = "✅ SUFFICIENT"
-            gap = f"{level - THRESHOLD_INSUFFICIENT:.1f} nmol/L above sufficient level"
+    N = len(oral)
 
-        # Print every day, or just print summary every 30 days to avoid huge output
-        # Change to: if True  — to print every single day
-        if i % 30 == 0 or i == len(C_total_values) - 1:
-            print(f"  {str(date):<14} {level:>18.2f}  {status:<20} {gap}")
+    # Convert UVB J/m2 -> SED for each day
+    uv_doses = [uvb_dose_to_sed(uvb) for uvb in uvb_raw_j_m2]
 
-    # --- Final summary ---
-    final_level = C_total_values[-1]
-    n_deficient    = sum(1 for v in C_total_values if v < THRESHOLD_DEFICIENT)
-    n_insufficient = sum(1 for v in C_total_values if THRESHOLD_DEFICIENT <= v < THRESHOLD_INSUFFICIENT)
-    n_sufficient   = sum(1 for v in C_total_values if v >= THRESHOLD_INSUFFICIENT)
+    # Run the full pharmacokinetic model (Eqs. 4, 5, 7, 11)
+    result = run_model(
+        oral_doses  = oral,
+        uv_doses    = uv_doses,
+        body_areas  = body_area_pct,
+        age         = age,
+        fitzpatrick = fitzpatrick,
+        C0          = C0,
+    )
 
-    print("="*65)
-    print(f"\n  FINAL DAY LEVEL : {final_level:.2f} nmol/L")
-    print()
-
-    if final_level < THRESHOLD_DEFICIENT:
-        shortfall = THRESHOLD_DEFICIENT - final_level
-        print(f"  STATUS : ⚠️  DEFICIENT")
-        print(f"  You are {shortfall:.1f} nmol/L BELOW the deficiency threshold of {THRESHOLD_DEFICIENT} nmol/L.")
-        print(f"  You would need to raise levels by {shortfall:.1f} nmol/L to exit deficiency.")
-    elif final_level < THRESHOLD_INSUFFICIENT:
-        shortfall = THRESHOLD_INSUFFICIENT - final_level
-        print(f"  STATUS : ⚡ INSUFFICIENT")
-        print(f"  You are {shortfall:.1f} nmol/L BELOW the sufficiency threshold of {THRESHOLD_INSUFFICIENT} nmol/L.")
-        print(f"  You are above deficiency but not yet at optimal levels.")
-    else:
-        surplus = final_level - THRESHOLD_INSUFFICIENT
-        print(f"  STATUS : ✅ SUFFICIENT")
-        print(f"  You are {surplus:.1f} nmol/L ABOVE the sufficiency threshold of {THRESHOLD_INSUFFICIENT} nmol/L.")
-
-    print()
-    print(f"  Days deficient    : {n_deficient}  ({100*n_deficient/len(C_total_values):.1f}% of tracked period)")
-    print(f"  Days insufficient : {n_insufficient}  ({100*n_insufficient/len(C_total_values):.1f}% of tracked period)")
-    print(f"  Days sufficient   : {n_sufficient}  ({100*n_sufficient/len(C_total_values):.1f}% of tracked period)")
-    print("="*65)
-
-
-# =============================================================================
-# LOAD CSV AND RUN
-# =============================================================================
-
-def load_and_validate_csv(filepath):
-    """
-    Loads the CSV and normalises column names.
-    Expected columns: date, uvi, uva, uvb, oral_intake_ug, skin_area_pct
-    """
-    df = pd.read_csv(filepath)
-    df.columns = df.columns.str.strip().str.lower()
-
-    required = ['date', 'uvi', 'oral_intake_ug', 'skin_area_pct']
-    missing = [c for c in required if c not in df.columns]
-    if missing:
-        raise ValueError(
-            f"CSV is missing required columns: {missing}\n"
-            f"Found columns: {list(df.columns)}\n\n"
-            f"Required: date, uvi, oral_intake_ug, skin_area_pct\n"
-            f"Optional: uva, uvb (noted but not used in Diffey model)\n\n"
-            f"Note: oral_intake_ug is daily vitamin D in micrograms\n"
-            f"      1000 IU pill = 25 µg  |  400 IU pill = 10 µg\n"
-            f"      skin_area_pct: % body exposed (face+hands=8, +arms=15, +legs=30)"
+    # ------------------------------------------------------------------
+    # Print results table
+    # ------------------------------------------------------------------
+    print("=" * 62)
+    print(f"  {name}")
+    print(f"    Age              : {age} years")
+    print(f"    Fitzpatrick type : {fitzpatrick}")
+    print(f"    f_age            : {age_factor(age):.3f}")
+    print(f"    f_skin           : {skin_factor(fitzpatrick):.3f}")
+    print(f"    Initial 25(OH)D  : {C0:.1f} nmol/L  (WARNING: assumed)")
+    print("=" * 62)
+    print(f"  {'Day':>4}  {'Oral (ug)':>10}  {'UVB (J/m2)':>12}  {'BSA (%)':>8}  {'C_total (nmol/L)':>18}")
+    print("  " + "-" * 57)
+    for day in range(N):
+        print(
+            f"  {day:>4}  {oral[day]:>10.1f}  {uvb_raw_j_m2[day]:>12.1f}"
+            f"  {body_area_pct[day]:>8.1f}  {result[day]:>18.2f}"
         )
+    print()
 
-    df['date'] = pd.to_datetime(df['date'])
-    df = df.sort_values('date').reset_index(drop=True)
-
-    # Note UVA/UVB in output but explain why they aren't used
-    if 'uva' in df.columns or 'uvb' in df.columns:
-        print("\n  NOTE on UV columns:")
-        print("  ├── UVA : detected in CSV — NOT used in model.")
-        print("  │         UVA (315–400 nm) does not synthesise vitamin D in skin.")
-        print("  ├── UVB : detected in CSV — NOT directly used in model.")
-        print("  │         UVB (280–315 nm) drives vitamin D but the Diffey model")
-        print("  │         uses SED (erythemal dose) as its UV metric, which we")
-        print("  │         derive from UVI since it correlates best with UVB activity.")
-        print("  └── UVI : USED — converted to SED (Standard Erythema Doses).\n")
-
-    # Convert UVI → SED
-    df['sed'] = df['uvi'].apply(uvi_to_sed)
-
-    return df
-
-
-def main(csv_path):
-    print(f"\n  Loading: {csv_path}")
-    df = load_and_validate_csv(csv_path)
-    print(f"  Loaded {len(df)} days of data ({df['date'].iloc[0].date()} → {df['date'].iloc[-1].date()})")
-
-    print("  Running Diffey (2013) vitamin D model...")
-    C_total = run_vitamin_d_model(df)
-
-    assess_deficiency(C_total, df['date'].dt.date)
-
-    # Also save results to CSV
-    df['C_total_nmol_L'] = C_total
-    out_path = csv_path.replace('.csv', '_results.csv')
-    df[['date', 'uvi', 'sed', 'oral_intake_ug', 'skin_area_pct', 'C_total_nmol_L']].to_csv(out_path, index=False)
-    print(f"\n  Full daily results saved to: {out_path}\n")
+    return result
 
 
 # =============================================================================
@@ -383,15 +491,95 @@ def main(csv_path):
 # =============================================================================
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("\n  Usage:  python vitamin_d_calculator.py your_data.csv")
-        print("\n  Example CSV format:")
-        print("  date,uvi,uva,uvb,oral_intake_ug,skin_area_pct")
-        print("  2024-01-01,2.1,3500,45,25,8")
-        print("  2024-01-02,1.8,3200,38,25,8")
-        print("  ...")
-        print("\n  oral_intake_ug: 1000 IU pill = 25 µg | 400 IU pill = 10 µg")
-        print("  skin_area_pct : face+hands=8 | +forearms=15 | +legs=30\n")
-        sys.exit(1)
+    # =========================================================================
+    # SHARED INPUT DATA
+    # Both oral intake and UVB are the same measured data for all subjects --
+    # they were exposed to the same environment and diet over these 6 days.
+    # Replace each value with the real measured observations.
+    #
+    # Oral intake units : ug/day  (1 ug = 40 IU)
+    # UVB units         : J/m2   (UVA excluded -- irrelevant to vitamin D)
+    # =========================================================================
 
-    main(sys.argv[1])
+    oral_all = [
+        15.0,   # day 0  -- replace with real dietary + supplement total (ug)
+        15.0,   # day 1
+        15.0,   # day 2
+        15.0,   # day 3
+        15.0,   # day 4
+        15.0,   # day 5
+    ]
+
+    uvb_all = [
+        300.0,  # day 0  -- replace with real measured UVB dose (J/m2)
+        300.0,  # day 1
+        300.0,  # day 2
+        300.0,  # day 3
+        300.0,  # day 4
+        300.0,  # day 5
+    ]
+
+    # =========================================================================
+    # SUBJECT PROFILES
+    # Subjects share the same oral and UVB environment but differ in age,
+    # Fitzpatrick skin type, and daily clothing / activity (body area).
+    #
+    # body_area_pct is a per-day list -- update each entry to reflect what
+    # the subject was actually wearing or doing on that day.
+    #
+    # C0 notes:
+    #   0.0  -- treat baseline as unknown (conservative lower bound)
+    #  50.0  -- approximate population mean for young adults
+    #  75.0  -- mid-range sufficiency threshold
+    # =========================================================================
+
+    simulate_subject(
+        name          = "Subject A -- 21 y/o, Fitzpatrick II",
+        oral          = oral_all,
+        uvb_raw_j_m2  = uvb_all,
+        body_area_pct = [
+            9.0,   # day 0  -- replace with real daily BSA (%)
+            9.0,   # day 1
+            0.0,   # day 2
+            9.0,   # day 3
+            0.0,   # day 4
+            9.0,   # day 5
+        ],
+        age           = 21,
+        fitzpatrick   = 2,
+        C0            = 50.0,
+    )
+
+    simulate_subject(
+        name          = "Subject B -- 20 y/o, Fitzpatrick II",
+        oral          = oral_all,
+        uvb_raw_j_m2  = uvb_all,
+        body_area_pct = [
+            9.0,   # day 0  -- replace with real daily BSA (%)
+            0.0,   # day 1
+            9.0,   # day 2
+            9.0,   # day 3
+            0.0,   # day 4
+            9.0,   # day 5
+        ],
+        age           = 20,
+        fitzpatrick   = 2,
+        C0            = 50.0,
+    )
+
+    simulate_subject(
+        name          = "Subject C -- 22 y/o, Fitzpatrick III",
+        oral          = oral_all,
+        uvb_raw_j_m2  = uvb_all,
+        body_area_pct = [
+            0.0,   # day 0  -- replace with real daily BSA (%)
+            9.0,   # day 1
+            9.0,   # day 2
+            0.0,   # day 3
+            15.0,   # day 4
+            9.0,   # day 5
+        ],
+        age           = 22,
+        fitzpatrick   = 3,
+        C0            = 50.0,
+    )
