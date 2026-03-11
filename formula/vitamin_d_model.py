@@ -1,0 +1,661 @@
+"""
+vitamin_d_model.py
+==================
+A computational implementation of the plasma 25(OH)D (vitamin D) model
+described in the accompanying LaTeX document, based on the pharmacokinetic
+framework of Diffey (2013), with demographic corrections from:
+  - Hilger et al. (2014) — sex independence
+  - Young (2020)         — Fitzpatrick skin-type scaling
+  - Chalcraft et al. (2020) — age-related synthesis decline
+
+Two simulation entry points are provided:
+
+  simulate_subject()
+      Legacy interface.  Accepts raw UVB (J/m²) + BSA% per day.
+      Use when wearable sensor CSV data is NOT available.
+
+  simulate_subject_from_logs()
+      Sensor-data interface.  Accepts per-body-part SED logs produced by
+      data_loader.load_subject_logs() via bsa.effective_doses_from_daily_logs().
+      The dose-area product E(t)*A(t) is computed directly from the sensor
+      readings instead of being approximated from a clothing survey.
+      Use this path for all subjects with wearable devices.
+
+All equation numbers in the comments refer to the source document.
+
+Author  : Claude (Anthropic, claude-sonnet-4-6)
+Purpose : Reference implementation for research / educational use
+"""
+
+import math
+
+
+# =============================================================================
+# FIXED BIOLOGICAL PARAMETERS
+# (Table 1 in source document — from Diffey 2013)
+# =============================================================================
+
+f      = 0.15   # Fraction of vitamin D stored in tissue (dimensionless)
+beta   = 25     # Plasma clearance half-life (days)
+gamma  = 250    # Tissue-store clearance half-life (days)
+alpha  = 0.6    # Half-time for UV-derived vitamin D uptake into plasma (days)
+alpha_ = 1.5    # Half-time for oral vitamin D uptake into plasma (days)  [alpha']
+A_uv   = 0.18   # UV scaling factor (nmol/L per SED per % body surface area)
+S      = 0.023  # Oral scaling factor (nmol/L per ug)
+
+
+# =============================================================================
+# DEMOGRAPHIC SCALAR FUNCTIONS
+# =============================================================================
+
+def skin_factor(fitzpatrick_type: int) -> float:
+    """
+    Eq. 9  --  Fitzpatrick skin-type UV exposure correction factor.
+
+    Darker skin contains more melanin, which competes with 7-dehydrocholesterol
+    for UVB photons, reducing vitamin D synthesis per unit of UV dose.
+    Young (2020) found that Types III-VI require ~1.35x more UV exposure to
+    achieve equivalent synthesis compared to Types I-II.
+
+    Parameters
+    ----------
+    fitzpatrick_type : int
+        Skin type on the Fitzpatrick scale (1-6).
+
+    Returns
+    -------
+    float
+        f_skin -- dimensionless scalar in range (0, 1].
+    """
+    if fitzpatrick_type in (1, 2):
+        return 1.00
+    elif fitzpatrick_type in (3, 4, 5, 6):
+        return 1.0 / 1.35   # approx 0.7407
+    else:
+        raise ValueError(f"Fitzpatrick type must be 1-6, got {fitzpatrick_type}")
+
+
+def age_factor(age: float) -> float:
+    """
+    Eq. 10  --  Age-related decline in cutaneous vitamin D synthesis.
+
+    Chalcraft et al. (2020) measured a ~1.3% per year decline in synthesis
+    capacity, anchored at age 20 (f_age = 1.0).
+
+    Parameters
+    ----------
+    age : float
+        Subject's age in years.
+
+    Returns
+    -------
+    float
+        f_age -- dimensionless scalar (nominally in (0, 1] for ages 20-97).
+    """
+    return 1.0 - 0.013 * (age - 20)
+
+
+# =============================================================================
+# UV DOSE CONVERSION
+# =============================================================================
+
+def uvb_dose_to_sed(uvb_j_per_m2: float) -> float:
+    """
+    Eq. 1 (adapted)  --  Convert daily UVB dose to Standard Erythemal Doses.
+
+    Conversion:  1 SED = 100 J/m²  (ISO 17166)
+    Therefore:   SED = UVB_dose (J/m²) / 100
+
+    UVA is excluded — it does not drive vitamin D photosynthesis.
+
+    Parameters
+    ----------
+    uvb_j_per_m2 : float
+        Total daily UVB irradiance dose in J/m².
+
+    Returns
+    -------
+    float
+        E(t) in SED.
+    """
+    return uvb_j_per_m2 / 100.0
+
+
+# =============================================================================
+# RESPONSE FUNCTIONS
+# =============================================================================
+
+def R_UV(t: float) -> float:
+    """
+    Eq. 2  --  UV-derived vitamin D impulse response function.
+
+    Describes the rise-and-fall kinetics of plasma 25(OH)D following a single
+    unit UV exposure (1 SED over 1% body area).
+
+    Parameters
+    ----------
+    t : float
+        Time since exposure (days, >= 0).
+
+    Returns
+    -------
+    float
+        Response in nmol/L per (SED × % body area).
+    """
+    return A_uv * (
+        (1 - f) * 2 ** (-t / beta)
+        + f     * 2 ** (-t / gamma)
+        - 2     ** (-t / alpha)
+    )
+
+
+def R_UV_eff(t: float) -> float:
+    """
+    Sensor-mode impulse response for the effective dose-area formulation.
+
+    Identical mathematics to R_UV but the input unit is
+    (SED × fractional BSA) rather than (SED × % BSA).
+    The scaling factor A_uv is multiplied by 100 to compensate for the
+    fractional-vs-percent difference:
+
+        R_UV_eff = 100 × R_UV   because   E*A(%) = 100 × E*A(fraction)
+
+    Parameters
+    ----------
+    t : float
+        Time since exposure (days, >= 0).
+
+    Returns
+    -------
+    float
+        Response in nmol/L per (SED × fractional BSA).
+    """
+    return 100.0 * R_UV(t)
+
+
+def R_oral(t: float) -> float:
+    """
+    Eq. 3  --  Oral vitamin D impulse response function.
+
+    Parameters
+    ----------
+    t : float
+        Time since ingestion (days, >= 0).
+
+    Returns
+    -------
+    float
+        Response in nmol/L per ug.
+    """
+    return S * (
+        (1 - f) * 2 ** (-t / beta)
+        + f     * 2 ** (-t / gamma)
+        - 2     ** (-t / alpha_)
+    )
+
+
+# =============================================================================
+# CONVOLUTION ACCUMULATORS
+# =============================================================================
+
+def compute_C_oral(oral_doses: list) -> list:
+    """
+    Eq. 4  --  Cumulative oral contribution to plasma 25(OH)D.
+
+    Parameters
+    ----------
+    oral_doses : list
+        O(t) for t = 0 … N-1  (ug/day).
+
+    Returns
+    -------
+    list
+        C_oral(T) for T = 0 … N-1  (nmol/L).
+    """
+    N = len(oral_doses)
+    C_oral = [0.0] * N
+    for T in range(N):
+        total = 0.0
+        for t in range(T + 1):
+            lag = T - t + 1
+            total += oral_doses[t] * R_oral(lag)
+        C_oral[T] = total
+    return C_oral
+
+
+def compute_C_sun(
+    uv_doses:    list,
+    body_areas:  list,
+    age:         float,
+    fitzpatrick: int,
+) -> list:
+    """
+    Eq. 11  --  Cumulative UV contribution (survey / legacy path).
+
+    Uses SED + % BSA inputs as in the original model.
+
+        C_sun(T) = Σ_{t=0}^{T}  f_age × f_skin × E(t) × A(t) × R_UV(T-t+1)
+
+    Parameters
+    ----------
+    uv_doses   : list  -- E(t) in SED per day.
+    body_areas : list  -- A(t) in % BSA per day.
+    age        : float        -- Subject age (years).
+    fitzpatrick: int          -- Fitzpatrick skin type 1-6.
+
+    Returns
+    -------
+    list
+        C_sun(T) for T = 0 … N-1  (nmol/L).
+    """
+    f_age_val  = age_factor(age)
+    f_skin_val = skin_factor(fitzpatrick)
+    demo       = f_age_val * f_skin_val
+
+    N = len(uv_doses)
+    C_sun = [0.0] * N
+    for T in range(N):
+        total = 0.0
+        for t in range(T + 1):
+            lag    = T - t + 1
+            total += demo * uv_doses[t] * body_areas[t] * R_UV(lag)
+        C_sun[T] = total
+    return C_sun
+
+
+def compute_C_sun_effective(
+    uv_eff_doses: list,
+    age:          float,
+    fitzpatrick:  int,
+) -> list:
+    """
+    Sensor-mode cumulative UV contribution  (replaces compute_C_sun when
+    per-body-part SED measurements are available from data_loader.py).
+
+    The effective dose-area product  D_eff(t) = Σ_i SED_i(t) × BSA_fraction_i
+    is read directly from the wearable sensor log via bsa.py and passed in as
+    ``uv_eff_doses``.  This collapses the two-argument (E, A%) form into a
+    single pre-computed scalar per day:
+
+        C_sun(T) = Σ_{t=0}^{T}  f_age × f_skin × D_eff(t) × R_UV_eff(T-t+1)
+
+    No BSA list is required — it is already embedded in D_eff.
+
+    Parameters
+    ----------
+    uv_eff_doses : list
+        D_eff(t) — effective dose-area product per day
+        (SED × fractional BSA, from bsa.effective_doses_from_daily_logs()).
+    age          : float  -- Subject age (years).
+    fitzpatrick  : int    -- Fitzpatrick skin type 1-6.
+
+    Returns
+    -------
+    list
+        C_sun(T) for T = 0 … N-1  (nmol/L).
+    """
+    f_age_val  = age_factor(age)
+    f_skin_val = skin_factor(fitzpatrick)
+    demo       = f_age_val * f_skin_val
+
+    N = len(uv_eff_doses)
+    C_sun = [0.0] * N
+    for T in range(N):
+        total = 0.0
+        for t in range(T + 1):
+            lag    = T - t + 1
+            total += demo * uv_eff_doses[t] * R_UV_eff(lag)
+        C_sun[T] = total
+    return C_sun
+
+
+# =============================================================================
+# SATURATION FACTOR
+# =============================================================================
+
+def saturation_factor(C_total_prev: float) -> float:
+    """
+    Eq. 5  --  Diminishing-returns saturation factor F(T).
+
+        F(T) = exp( -0.01 × C_total(T-1) )
+
+    Parameters
+    ----------
+    C_total_prev : float
+        Plasma 25(OH)D on the previous day (nmol/L).
+
+    Returns
+    -------
+    float
+        F(T) in (0, 1].
+    """
+    return math.exp(-0.01 * C_total_prev)
+
+
+# =============================================================================
+# MASTER MODEL — total plasma 25(OH)D
+# =============================================================================
+
+def run_model(
+    oral_doses:  list,
+    uv_doses:    list,
+    body_areas:  list,
+    age:         float,
+    fitzpatrick: int,
+    C0:          float = 50.0,
+) -> list:
+    """
+    Eq. 7  --  Total plasma 25(OH)D trajectory  (legacy / survey path).
+
+    Uses raw SED + % BSA inputs.  For sensor-equipped subjects prefer
+    run_model_from_effective_doses().
+
+    Parameters
+    ----------
+    oral_doses   : list  -- O(t) in ug/day.
+    uv_doses     : list  -- E(t) in SED/day.
+    body_areas   : list  -- A(t) in % BSA/day.
+    age          : float        -- Subject age (years).
+    fitzpatrick  : int          -- Fitzpatrick skin type 1-6.
+    C0           : float        -- Initial plasma 25(OH)D (nmol/L).
+
+    Returns
+    -------
+    list
+        C_total(T) for T = 0 … N-1  (nmol/L).
+    """
+    N = len(oral_doses)
+    assert len(uv_doses)   == N, "All input lists must be the same length."
+    assert len(body_areas) == N, "All input lists must be the same length."
+
+    C_oral = compute_C_oral(oral_doses)
+    C_sun  = compute_C_sun(uv_doses, body_areas, age, fitzpatrick)
+
+    C_total = [0.0] * N
+    for T in range(N):
+        C_prev      = C0      if T == 0 else C_total[T - 1]
+        C_oral_prev = 0.0     if T == 0 else C_oral[T - 1]
+        C_sun_prev  = 0.0     if T == 0 else C_sun[T - 1]
+
+        delta_oral = C_oral[T] - C_oral_prev
+        delta_sun  = C_sun[T]  - C_sun_prev
+        F          = saturation_factor(C_prev)
+
+        C_total[T] = C_prev + delta_oral + F * delta_sun
+
+    return C_total
+
+
+def run_model_from_effective_doses(
+    oral_doses:   list,
+    uv_eff_doses: list,
+    age:          float,
+    fitzpatrick:  int,
+    C0:           float = 50.0,
+) -> list:
+    """
+    Eq. 7  --  Total plasma 25(OH)D trajectory  (sensor / CSV log path).
+
+    Uses the pre-computed dose-area product from wearable sensor logs
+    instead of the two-argument E(t) × A(t) form.  All other model
+    mechanics (oral convolution, saturation, demographics) are unchanged.
+
+    Parameters
+    ----------
+    oral_doses   : list  -- O(t) in ug/day.
+    uv_eff_doses : list  -- D_eff(t) — effective dose-area product per day
+                            (SED × fractional BSA), from
+                            bsa.effective_doses_from_daily_logs() or
+                            data_loader.extract_effective_doses().
+    age          : float        -- Subject age (years).
+    fitzpatrick  : int          -- Fitzpatrick skin type 1-6.
+    C0           : float        -- Initial plasma 25(OH)D (nmol/L).
+
+    Returns
+    -------
+    list
+        C_total(T) for T = 0 … N-1  (nmol/L).
+    """
+    N = len(oral_doses)
+    assert len(uv_eff_doses) == N, "oral_doses and uv_eff_doses must be the same length."
+
+    C_oral = compute_C_oral(oral_doses)
+    C_sun  = compute_C_sun_effective(uv_eff_doses, age, fitzpatrick)
+
+    C_total = [0.0] * N
+    for T in range(N):
+        C_prev      = C0      if T == 0 else C_total[T - 1]
+        C_oral_prev = 0.0     if T == 0 else C_oral[T - 1]
+        C_sun_prev  = 0.0     if T == 0 else C_sun[T - 1]
+
+        delta_oral = C_oral[T] - C_oral_prev
+        delta_sun  = C_sun[T]  - C_sun_prev
+        F          = saturation_factor(C_prev)
+
+        C_total[T] = C_prev + delta_oral + F * delta_sun
+
+    return C_total
+
+
+# =============================================================================
+# SIMULATION RUNNERS
+# =============================================================================
+
+def _print_header(name, age, fitzpatrick, C0):
+    print("=" * 65)
+    print(f"  {name}")
+    print(f"    Age              : {age} years")
+    print(f"    Fitzpatrick type : {fitzpatrick}")
+    print(f"    f_age            : {age_factor(age):.3f}")
+    print(f"    f_skin           : {skin_factor(fitzpatrick):.3f}")
+    print(f"    Initial 25(OH)D  : {C0:.1f} nmol/L  (WARNING: assumed)")
+    print("=" * 65)
+
+
+def simulate_subject(
+    name:          str,
+    oral:          list,
+    uvb_raw_j_m2:  list,
+    body_area_pct: list,
+    age:           float,
+    fitzpatrick:   int,
+    C0:            float,
+) -> list:
+    """
+    Legacy interface: simulate using raw UVB (J/m²) + BSA% per day.
+
+    Use this when no wearable sensor CSV data is available.
+    For subjects with UV logger devices use simulate_subject_from_logs().
+
+    Parameters
+    ----------
+    name           : Label for the printed output.
+    oral           : Daily oral vitamin D intake (ug/day; 1 ug = 40 IU).
+    uvb_raw_j_m2   : Daily UVB dose (J/m²).  UVA excluded.
+    body_area_pct  : Body surface area exposed per day (%).
+    age            : Subject age (years).
+    fitzpatrick    : Fitzpatrick skin type 1-6.
+    C0             : Initial plasma 25(OH)D (nmol/L).
+
+    Returns
+    -------
+    list
+        C_total(T) for each day  (nmol/L).
+    """
+    N = len(oral)
+    assert len(uvb_raw_j_m2)  == N, "oral and uvb_raw_j_m2 must match in length."
+    assert len(body_area_pct) == N, "oral and body_area_pct must match in length."
+
+    uv_doses = [uvb_dose_to_sed(v) for v in uvb_raw_j_m2]
+    result   = run_model(
+        oral_doses  = oral,
+        uv_doses    = uv_doses,
+        body_areas  = body_area_pct,
+        age         = age,
+        fitzpatrick = fitzpatrick,
+        C0          = C0,
+    )
+
+    _print_header(name, age, fitzpatrick, C0)
+    print(f"  {'Day':>4}  {'Oral(ug)':>9}  {'UVB(J/m²)':>10}  {'BSA(%)':>7}  {'C_total(nmol/L)':>16}")
+    print("  " + "-" * 57)
+    for day in range(N):
+        print(
+            f"  {day:>4}  {oral[day]:>9.1f}  {uvb_raw_j_m2[day]:>10.1f}"
+            f"  {body_area_pct[day]:>7.1f}  {result[day]:>16.2f}"
+        )
+    print()
+    return result
+
+
+def simulate_subject_from_logs(
+    name:         str,
+    oral:         list,
+    daily_logs:   list,
+    age:          float,
+    fitzpatrick:  int,
+    C0:           float,
+) -> list:
+    """
+    Sensor-data interface: simulate using per-body-part SED CSV logs.
+
+    ``daily_logs`` is the direct output of data_loader.load_subject_logs().
+    The effective dose-area product is derived from the per-body-part SED
+    measurements via bsa.effective_doses_from_daily_logs(), so no BSA survey
+    is needed.
+
+    Parameters
+    ----------
+    name        : Label for the printed output.
+    oral        : Daily oral vitamin D intake (ug/day).
+    daily_logs  : List of per-day summary dicts from data_loader.load_subject_logs().
+    age         : Subject age (years).
+    fitzpatrick : Fitzpatrick skin type 1-6.
+    C0          : Initial plasma 25(OH)D (nmol/L).
+
+    Returns
+    -------
+    list
+        C_total(T) for each day  (nmol/L).
+    """
+    # Import here to avoid circular dependency at module level
+    from bsa import effective_doses_from_daily_logs
+
+    uv_eff_doses = effective_doses_from_daily_logs(daily_logs)
+    N            = len(oral)
+
+    assert len(uv_eff_doses) == N, (
+        f"[{name}] oral ({len(oral)}) and daily_logs ({len(daily_logs)}) "
+        "must cover the same number of days."
+    )
+
+    result = run_model_from_effective_doses(
+        oral_doses   = oral,
+        uv_eff_doses = uv_eff_doses,
+        age          = age,
+        fitzpatrick  = fitzpatrick,
+        C0           = C0,
+    )
+
+    _print_header(name, age, fitzpatrick, C0)
+    print(f"  {'Day':>4}  {'Oral(ug)':>9}  {'D_eff':>8}  {'%Outdoor':>9}  {'C_total(nmol/L)':>16}")
+    print("  " + "-" * 57)
+    for day in range(N):
+        pct_out = daily_logs[day].get("fraction_outdoor", float("nan")) * 100
+        print(
+            f"  {day:>4}  {oral[day]:>9.1f}  {uv_eff_doses[day]:>8.4f}"
+            f"  {pct_out:>8.1f}%  {result[day]:>16.2f}"
+        )
+    print()
+    return result
+
+
+# =============================================================================
+# ENTRY POINT
+# =============================================================================
+
+if __name__ == "__main__":
+    from pathlib import Path
+
+    # -------------------------------------------------------------------------
+    # Shared oral intake — update with real measured values.
+    # Units: ug/day   (1 ug = 40 IU)
+    # -------------------------------------------------------------------------
+    oral_all = [15.0, 15.0, 15.0, 15.0, 15.0, 15.0]   # days 0–5
+
+    DATE_RANGE = [
+        "2026-03-04",
+        "2026-03-05",
+        "2026-03-06",
+        "2026-03-07",
+        "2026-03-08",
+        "2026-03-09",
+    ]
+
+    # =========================================================================
+    # PATH A — Sensor data available  (Oscar and Nicole have CSV logs)
+    # =========================================================================
+    try:
+        from data_loader import load_subject_logs, print_log_summary
+
+        DATA_ROOT = Path("data")
+
+        sensor_subjects = [
+            ("Oscar  -- Subject A -- ~21 y/o, Fitzpatrick II",
+             DATA_ROOT / "uv oscar",      21,   2,  50.0),
+            ("Nicole -- Subject B -- ~20 y/o, Fitzpatrick II",
+             DATA_ROOT / "Uv tests Nicole", 20, 2,  50.0),
+        ]
+
+        for name, log_dir, age, fitz, C0 in sensor_subjects:
+            if not log_dir.is_dir():
+                print(f"[SKIP] Log directory not found: {log_dir}")
+                continue
+            logs = load_subject_logs(log_dir, date_range=DATE_RANGE)
+            print_log_summary(logs, subject_name=name)
+            simulate_subject_from_logs(
+                name        = name,
+                oral        = oral_all,
+                daily_logs  = logs,
+                age         = age,
+                fitzpatrick = fitz,
+                C0          = C0,
+            )
+
+    except ImportError:
+        print("[INFO] data_loader not available — falling back to legacy mode.\n")
+
+    # =========================================================================
+    # PATH B — Legacy mode  (no sensor data; uses BSA survey + raw UVB)
+    # =========================================================================
+    uvb_all = [300.0] * 6   # J/m² — replace with real daily UVB measurements
+
+    simulate_subject(
+        name          = "Subject A -- 21 y/o, Fitzpatrick II  [legacy]",
+        oral          = oral_all,
+        uvb_raw_j_m2  = uvb_all,
+        body_area_pct = [9.0, 9.0, 0.0, 9.0, 0.0, 9.0],
+        age           = 21,
+        fitzpatrick   = 2,
+        C0            = 50.0,
+    )
+
+    simulate_subject(
+        name          = "Subject B -- 20 y/o, Fitzpatrick II  [legacy]",
+        oral          = oral_all,
+        uvb_raw_j_m2  = uvb_all,
+        body_area_pct = [9.0, 0.0, 9.0, 9.0, 0.0, 9.0],
+        age           = 20,
+        fitzpatrick   = 2,
+        C0            = 50.0,
+    )
+
+    simulate_subject(
+        name          = "Subject C -- 22 y/o, Fitzpatrick III  [legacy]",
+        oral          = oral_all,
+        uvb_raw_j_m2  = uvb_all,
+        body_area_pct = [0.0, 9.0, 9.0, 0.0, 15.0, 9.0],
+        age           = 22,
+        fitzpatrick   = 3,
+        C0            = 50.0,
+    )
