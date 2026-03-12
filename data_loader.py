@@ -149,9 +149,11 @@ def read_uv_log(filepath: str | Path) -> dict:
     outdoor_count = 0
     n_rows       = 0
 
+    import io
     with open(filepath, newline="", encoding="utf-8") as fh:
-        reader = csv.DictReader(fh)
-        for row in reader:
+        content = fh.read()   # read entire file at once — avoids network timeout on row-by-row reads
+    reader = csv.DictReader(io.StringIO(content))
+    for row in reader:
             n_rows += 1
 
             # Environmental UV
@@ -283,20 +285,20 @@ def extract_uvb_doses(daily_logs: list[dict]) -> list[float]:
 # DIAGNOSTIC PRINTING
 # =============================================================================
 
-def print_log_summary(daily_logs: list[dict], subject_name: str = "") -> None:
+def print_log_summary(daily_logs: list[dict], subject_name: str = "", file=None) -> None:
     """Print a human-readable summary table of loaded log data."""
     label = f"  Subject: {subject_name}" if subject_name else "  Log Summary"
-    print("=" * 70)
-    print(label)
-    print(f"  {'Day':>4}  {'File':>30}  {'Rows':>5}  {'Eff.Dose':>10}  {'%Outdoor':>9}")
-    print("  " + "-" * 63)
+    print("=" * 70, file=file)
+    print(label, file=file)
+    print(f"  {'Day':>4}  {'File':>30}  {'Rows':>5}  {'Eff.Dose':>10}  {'%Outdoor':>9}", file=file)
+    print("  " + "-" * 63, file=file)
     for i, d in enumerate(daily_logs):
         fname    = Path(d["filepath"]).name[:30]
         rows     = d["n_rows"]
         eff      = d["effective_dose"]
         pct_out  = d["fraction_outdoor"] * 100
-        print(f"  {i:>4}  {fname:>30}  {rows:>5}  {eff:>10.4f}  {pct_out:>8.1f}%")
-    print()
+        print(f"  {i:>4}  {fname:>30}  {rows:>5}  {eff:>10.4f}  {pct_out:>8.1f}%", file=file)
+    print(file=file)
 
 
 # =============================================================================
@@ -306,13 +308,13 @@ def print_log_summary(daily_logs: list[dict], subject_name: str = "") -> None:
 if __name__ == "__main__":
     import sys
 
-    DATA_ROOT = Path("data")
+    DATA_ROOT = Path(__file__).parent / "data"
 
     # Map subject labels to their log subdirectories
     SUBJECTS = {
         "Oscar":  DATA_ROOT / "uv oscar",
         "Nicole": DATA_ROOT / "Uv tests Nicole",
-        "UV_logs (shared)": DATA_ROOT / "UV_logs",
+        "vi_logs (shared)": DATA_ROOT / "vi_logs",
     }
 
     DATE_RANGE = [

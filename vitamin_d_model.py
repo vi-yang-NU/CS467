@@ -441,15 +441,15 @@ def run_model_from_effective_doses(
 # SIMULATION RUNNERS
 # =============================================================================
 
-def _print_header(name, age, fitzpatrick, C0):
-    print("=" * 65)
-    print(f"  {name}")
-    print(f"    Age              : {age} years")
-    print(f"    Fitzpatrick type : {fitzpatrick}")
-    print(f"    f_age            : {age_factor(age):.3f}")
-    print(f"    f_skin           : {skin_factor(fitzpatrick):.3f}")
-    print(f"    Initial 25(OH)D  : {C0:.1f} nmol/L  (WARNING: assumed)")
-    print("=" * 65)
+def _print_header(name, age, fitzpatrick, C0, file=None):
+    print("=" * 65, file=file)
+    print(f"  {name}", file=file)
+    print(f"    Age              : {age} years", file=file)
+    print(f"    Fitzpatrick type : {fitzpatrick}", file=file)
+    print(f"    f_age            : {age_factor(age):.3f}", file=file)
+    print(f"    f_skin           : {skin_factor(fitzpatrick):.3f}", file=file)
+    print(f"    Initial 25(OH)D  : {C0:.1f} nmol/L  (WARNING: assumed)", file=file)
+    print("=" * 65, file=file)
 
 
 def simulate_subject(
@@ -460,6 +460,7 @@ def simulate_subject(
     age:           float,
     fitzpatrick:   int,
     C0:            float,
+    file=None,
 ) -> list:
     """
     Legacy interface: simulate using raw UVB (J/m²) + BSA% per day.
@@ -496,15 +497,16 @@ def simulate_subject(
         C0          = C0,
     )
 
-    _print_header(name, age, fitzpatrick, C0)
-    print(f"  {'Day':>4}  {'Oral(ug)':>9}  {'UVB(J/m²)':>10}  {'BSA(%)':>7}  {'C_total(nmol/L)':>16}")
-    print("  " + "-" * 57)
+    _print_header(name, age, fitzpatrick, C0, file=file)
+    print(f"  {'Day':>4}  {'Oral(ug)':>9}  {'UVB(J/m²)':>10}  {'BSA(%)':>7}  {'C_total(nmol/L)':>16}", file=file)
+    print("  " + "-" * 57, file=file)
     for day in range(N):
         print(
             f"  {day:>4}  {oral[day]:>9.1f}  {uvb_raw_j_m2[day]:>10.1f}"
-            f"  {body_area_pct[day]:>7.1f}  {result[day]:>16.2f}"
+            f"  {body_area_pct[day]:>7.1f}  {result[day]:>16.2f}",
+            file=file,
         )
-    print()
+    print(file=file)
     return result
 
 
@@ -515,6 +517,7 @@ def simulate_subject_from_logs(
     age:          float,
     fitzpatrick:  int,
     C0:           float,
+    file=None,
 ) -> list:
     """
     Sensor-data interface: simulate using per-body-part SED CSV logs.
@@ -557,16 +560,17 @@ def simulate_subject_from_logs(
         C0           = C0,
     )
 
-    _print_header(name, age, fitzpatrick, C0)
-    print(f"  {'Day':>4}  {'Oral(ug)':>9}  {'D_eff':>8}  {'%Outdoor':>9}  {'C_total(nmol/L)':>16}")
-    print("  " + "-" * 57)
+    _print_header(name, age, fitzpatrick, C0, file=file)
+    print(f"  {'Day':>4}  {'Oral(ug)':>9}  {'D_eff':>8}  {'%Outdoor':>9}  {'C_total(nmol/L)':>16}", file=file)
+    print("  " + "-" * 57, file=file)
     for day in range(N):
         pct_out = daily_logs[day].get("fraction_outdoor", float("nan")) * 100
         print(
             f"  {day:>4}  {oral[day]:>9.1f}  {uv_eff_doses[day]:>8.4f}"
-            f"  {pct_out:>8.1f}%  {result[day]:>16.2f}"
+            f"  {pct_out:>8.1f}%  {result[day]:>16.2f}",
+            file=file,
         )
-    print()
+    print(file=file)
     return result
 
 
@@ -575,7 +579,16 @@ def simulate_subject_from_logs(
 # =============================================================================
 
 if __name__ == "__main__":
+    import sys
+    import contextlib
     from pathlib import Path
+    from datetime import datetime
+
+    # -------------------------------------------------------------------------
+    # Output file — written next to this script in formula/
+    # -------------------------------------------------------------------------
+    SCRIPT_DIR  = Path(__file__).parent
+    OUTPUT_FILE = SCRIPT_DIR / "results.txt"
 
     # -------------------------------------------------------------------------
     # Shared oral intake — update with real measured values.
@@ -592,70 +605,102 @@ if __name__ == "__main__":
         "2026-03-09",
     ]
 
-    # =========================================================================
-    # PATH A — Sensor data available  (Oscar and Nicole have CSV logs)
-    # =========================================================================
-    try:
-        from data_loader import load_subject_logs, print_log_summary
+    def run_all(out):
+        """Run all simulations, writing every print() to `out`."""
 
-        DATA_ROOT = Path("data")
+        # =====================================================================
+        # PATH A — Sensor data available
+        # =====================================================================
+        try:
+            from data_loader import load_subject_logs, print_log_summary
 
-        sensor_subjects = [
-            ("Oscar  -- Subject A -- ~21 y/o, Fitzpatrick II",
-             DATA_ROOT / "uv oscar",      21,   2,  50.0),
-            ("Nicole -- Subject B -- ~20 y/o, Fitzpatrick II",
-             DATA_ROOT / "Uv tests Nicole", 20, 2,  50.0),
-        ]
+            DATA_ROOT = Path(__file__).parent / "data"
 
-        for name, log_dir, age, fitz, C0 in sensor_subjects:
-            if not log_dir.is_dir():
-                print(f"[SKIP] Log directory not found: {log_dir}")
-                continue
-            logs = load_subject_logs(log_dir, date_range=DATE_RANGE)
-            print_log_summary(logs, subject_name=name)
-            simulate_subject_from_logs(
-                name        = name,
-                oral        = oral_all,
-                daily_logs  = logs,
-                age         = age,
-                fitzpatrick = fitz,
-                C0          = C0,
-            )
+            sensor_subjects = [
+                ("Oscar  -- Subject A -- ~21 y/o, Fitzpatrick II",
+                 DATA_ROOT / "uv oscar",        21, 2, 50.0),
+                ("Nicole -- Subject B -- ~20 y/o, Fitzpatrick II",
+                 DATA_ROOT / "Uv tests Nicole", 20, 2, 50.0),
+                ("Subject C -- vi_logs",
+                 DATA_ROOT / "vi_logs",         22, 3, 50.0),
+            ]
 
-    except ImportError:
-        print("[INFO] data_loader not available — falling back to legacy mode.\n")
+            for name, log_dir, age, fitz, C0 in sensor_subjects:
+                if not log_dir.is_dir():
+                    print(f"[SKIP] Log directory not found: {log_dir}", file=out)
+                    continue
+                logs = load_subject_logs(log_dir, date_range=DATE_RANGE)
+                print_log_summary(logs, subject_name=name, file=out)
+                simulate_subject_from_logs(
+                    name        = name,
+                    oral        = oral_all[:len(logs)],
+                    daily_logs  = logs,
+                    age         = age,
+                    fitzpatrick = fitz,
+                    C0          = C0,
+                    file        = out,
+                )
 
-    # =========================================================================
-    # PATH B — Legacy mode  (no sensor data; uses BSA survey + raw UVB)
-    # =========================================================================
-    uvb_all = [300.0] * 6   # J/m² — replace with real daily UVB measurements
+        except ImportError:
+            print("[INFO] data_loader not available — legacy mode only.\n", file=out)
 
-    simulate_subject(
-        name          = "Subject A -- 21 y/o, Fitzpatrick II  [legacy]",
-        oral          = oral_all,
-        uvb_raw_j_m2  = uvb_all,
-        body_area_pct = [9.0, 9.0, 0.0, 9.0, 0.0, 9.0],
-        age           = 21,
-        fitzpatrick   = 2,
-        C0            = 50.0,
-    )
+        # =====================================================================
+        # PATH B — Legacy mode
+        # =====================================================================
+        uvb_all = [300.0] * 6
 
-    simulate_subject(
-        name          = "Subject B -- 20 y/o, Fitzpatrick II  [legacy]",
-        oral          = oral_all,
-        uvb_raw_j_m2  = uvb_all,
-        body_area_pct = [9.0, 0.0, 9.0, 9.0, 0.0, 9.0],
-        age           = 20,
-        fitzpatrick   = 2,
-        C0            = 50.0,
-    )
+        # simulate_subject(
+        #     name          = "Subject A -- 21 y/o, Fitzpatrick II  [legacy]",
+        #     oral          = oral_all,
+        #     uvb_raw_j_m2  = uvb_all,
+        #     body_area_pct = [9.0, 9.0, 0.0, 9.0, 0.0, 9.0],
+        #     age           = 21,
+        #     fitzpatrick   = 2,
+        #     C0            = 50.0,
+        #     file          = out,
+        # )
+        # simulate_subject(
+        #     name          = "Subject B -- 20 y/o, Fitzpatrick II  [legacy]",
+        #     oral          = oral_all,
+        #     uvb_raw_j_m2  = uvb_all,
+        #     body_area_pct = [9.0, 0.0, 9.0, 9.0, 0.0, 9.0],
+        #     age           = 20,
+        #     fitzpatrick   = 2,
+        #     C0            = 50.0,
+        #     file          = out,
+        # )
+        # simulate_subject(
+        #     name          = "Subject C -- 22 y/o, Fitzpatrick III  [legacy]",
+        #     oral          = oral_all,
+        #     uvb_raw_j_m2  = uvb_all,
+        #     body_area_pct = [0.0, 9.0, 9.0, 0.0, 15.0, 9.0],
+        #     age           = 22,
+        #     fitzpatrick   = 3,
+        #     C0            = 50.0,
+        #     file          = out,
+        # )
 
-    simulate_subject(
-        name          = "Subject C -- 22 y/o, Fitzpatrick III  [legacy]",
-        oral          = oral_all,
-        uvb_raw_j_m2  = uvb_all,
-        body_area_pct = [0.0, 9.0, 9.0, 0.0, 15.0, 9.0],
-        age           = 22,
-        fitzpatrick   = 3,
-        C0            = 50.0,
-    )
+    # -------------------------------------------------------------------------
+    # Write to file AND echo to terminal simultaneously
+    # -------------------------------------------------------------------------
+    _real_stdout = sys.stdout   # capture before any redirection
+
+    with open(OUTPUT_FILE, "w", encoding="utf-8") as outfile:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        header = f"vitamin_d_model.py  —  results generated {timestamp}\n"
+        _real_stdout.write(header + "\n")
+        outfile.write(header + "\n")
+
+        class Tee:
+            """Write to both the output file and the real terminal stdout."""
+            def write(self, msg):
+                _real_stdout.write(msg)
+                outfile.write(msg)
+            def flush(self):
+                _real_stdout.flush()
+                outfile.flush()
+
+        with contextlib.redirect_stdout(Tee()):
+            run_all(out=sys.stdout)
+
+    _real_stdout.write(f"\nResults saved to: {OUTPUT_FILE}\n")

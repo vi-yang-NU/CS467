@@ -21,7 +21,7 @@ Two operational modes are supported:
 BSA values are derived from the Lund-Browder chart (standard clinical
 reference for body surface area proportions).
 
-Author  : Claude (Anthropic, claude-sonnet-4-6)
+Author Credit : Claude (Anthropic, claude-sonnet-4-6)
 """
 
 
