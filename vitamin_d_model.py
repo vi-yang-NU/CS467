@@ -575,6 +575,50 @@ def simulate_subject_from_logs(
 
 
 # =============================================================================
+# ORAL DOSE LOADER
+# =============================================================================
+
+def load_oral_doses_from_json(json_path, subject_key: str, date_range: list) -> list:
+    """
+    Load daily oral vitamin D intakes from vitaminD-mapped.json.
+
+    The JSON stores ``totalVitaminD_estimated`` in IU per day.
+    This function converts to µg (÷ 40) to match the model's expected units.
+
+    Days in ``date_range`` that have no entry in the JSON fall back to 0.0 µg.
+
+    Parameters
+    ----------
+    json_path   : str or Path — path to vitaminD-mapped.json.
+    subject_key : str         — top-level key in the JSON
+                                ("Nicole", "Oscar", or "vi_pdf").
+    date_range  : list[str]   — ordered list of "YYYY-MM-DD" strings that
+                                define the simulation window.
+
+    Returns
+    -------
+    list[float]
+        Oral dose in µg/day for each date in date_range.
+    """
+    import json
+
+    with open(json_path, "r", encoding="utf-8") as fh:
+        data = json.load(fh)
+
+    subject_records = data.get(subject_key, [])
+    # Build a quick date → IU lookup
+    iu_by_date = {rec["date"]: rec["totalVitaminD_estimated"]
+                  for rec in subject_records}
+
+    oral_ug = []
+    for date_str in date_range:
+        iu = iu_by_date.get(date_str, 0.0)
+        oral_ug.append(iu / 40.0)   # 1 µg = 40 IU
+
+    return oral_ug
+
+
+# =============================================================================
 # ENTRY POINT
 # =============================================================================
 
@@ -591,10 +635,10 @@ if __name__ == "__main__":
     OUTPUT_FILE = SCRIPT_DIR / "results.txt"
 
     # -------------------------------------------------------------------------
-    # Shared oral intake — update with real measured values.
-    # Units: ug/day   (1 ug = 40 IU)
+    # vitaminD-mapped.json — oral intake source (IU → µg conversion inside
+    # load_oral_doses_from_json).  Expected to live next to this script.
     # -------------------------------------------------------------------------
-    oral_all = [15.0, 15.0, 15.0, 15.0, 15.0, 15.0]   # days 0–5
+    ORAL_JSON = SCRIPT_DIR / "vitaminD-mapped.json"
 
     DATE_RANGE = [
         "2026-03-04",
@@ -616,24 +660,38 @@ if __name__ == "__main__":
 
             DATA_ROOT = Path(__file__).parent / "data"
 
+            # ------------------------------------------------------------------
+            # subject_key must match a top-level key in vitaminD-mapped.json
+            # ------------------------------------------------------------------
             sensor_subjects = [
                 ("Oscar  -- Subject A -- ~21 y/o, Fitzpatrick II",
-                 DATA_ROOT / "uv oscar",        21, 2, 50.0),
+                 DATA_ROOT / "uv oscar",        "Oscar",   21, 2, 50.0),
                 ("Nicole -- Subject B -- ~20 y/o, Fitzpatrick II",
-                 DATA_ROOT / "Uv tests Nicole", 20, 2, 50.0),
+                 DATA_ROOT / "Uv tests Nicole", "Nicole",  20, 2, 50.0),
                 ("Subject C -- vi_logs",
-                 DATA_ROOT / "vi_logs",         22, 3, 50.0),
+                 DATA_ROOT / "vi_logs",         "vi_pdf",  22, 3, 50.0),
             ]
 
-            for name, log_dir, age, fitz, C0 in sensor_subjects:
+            for name, log_dir, subject_key, age, fitz, C0 in sensor_subjects:
                 if not log_dir.is_dir():
                     print(f"[SKIP] Log directory not found: {log_dir}", file=out)
                     continue
+
                 logs = load_subject_logs(log_dir, date_range=DATE_RANGE)
+
+                # Load per-day oral doses from JSON, trimmed to actual log length
+                oral = load_oral_doses_from_json(ORAL_JSON, subject_key, DATE_RANGE[:len(logs)])
+
+                print(
+                    f"[INFO] {name}: loaded oral doses from JSON "
+                    f"({len(oral)} days, key='{subject_key}')",
+                    file=out,
+                )
+
                 print_log_summary(logs, subject_name=name, file=out)
                 simulate_subject_from_logs(
                     name        = name,
-                    oral        = oral_all[:len(logs)],
+                    oral        = oral,
                     daily_logs  = logs,
                     age         = age,
                     fitzpatrick = fitz,
@@ -645,13 +703,17 @@ if __name__ == "__main__":
             print("[INFO] data_loader not available — legacy mode only.\n", file=out)
 
         # =====================================================================
-        # PATH B — Legacy mode
+        # PATH B — Legacy mode (uncomment blocks below to use)
         # =====================================================================
         uvb_all = [300.0] * 6
 
+        # oral_oscar  = load_oral_doses_from_json(ORAL_JSON, "Oscar",   DATE_RANGE)
+        # oral_nicole = load_oral_doses_from_json(ORAL_JSON, "Nicole",  DATE_RANGE)
+        # oral_vi     = load_oral_doses_from_json(ORAL_JSON, "vi_pdf",  DATE_RANGE)
+
         # simulate_subject(
         #     name          = "Subject A -- 21 y/o, Fitzpatrick II  [legacy]",
-        #     oral          = oral_all,
+        #     oral          = oral_oscar,
         #     uvb_raw_j_m2  = uvb_all,
         #     body_area_pct = [9.0, 9.0, 0.0, 9.0, 0.0, 9.0],
         #     age           = 21,
@@ -661,7 +723,7 @@ if __name__ == "__main__":
         # )
         # simulate_subject(
         #     name          = "Subject B -- 20 y/o, Fitzpatrick II  [legacy]",
-        #     oral          = oral_all,
+        #     oral          = oral_nicole,
         #     uvb_raw_j_m2  = uvb_all,
         #     body_area_pct = [9.0, 0.0, 9.0, 9.0, 0.0, 9.0],
         #     age           = 20,
@@ -671,7 +733,7 @@ if __name__ == "__main__":
         # )
         # simulate_subject(
         #     name          = "Subject C -- 22 y/o, Fitzpatrick III  [legacy]",
-        #     oral          = oral_all,
+        #     oral          = oral_vi,
         #     uvb_raw_j_m2  = uvb_all,
         #     body_area_pct = [0.0, 9.0, 9.0, 0.0, 15.0, 9.0],
         #     age           = 22,

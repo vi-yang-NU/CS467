@@ -1,0 +1,765 @@
+{
+  "Nicole": [
+    {
+      "date": "2026-03-04",
+      "totalVitaminD_estimated": 43,
+      "foods": [
+        {"name": "Pasta (angel hair) with cheese", "amount": "2.4 oz dry x2 daily", "vitaminD_estimated": 0, "basis": "Pasta and typical hard/soft cheeses have negligible vitamin D"},
+        {"name": "Lactose-free milk", "amount": "3 oz", "vitaminD_estimated": 43, "basis": "Fortified lactose-free milk ~115 IU/8oz → 3 oz ≈ 43 IU"},
+        {"name": "Chewy chocolate chip cookies", "amount": "5-6 cookies", "vitaminD_estimated": 0, "basis": "Cookies contain negligible vitamin D"},
+        {"name": "Blackberries", "amount": "0.5 oz", "vitaminD_estimated": 0, "basis": "Berries contain no vitamin D"}
+      ],
+      "notes": ""
+    },
+    {
+      "date": "2026-03-05",
+      "totalVitaminD_estimated": 45,
+      "foods": [
+        {"name": "Pasta (angel hair) with cheese", "amount": "2.4 oz dry x2 daily", "vitaminD_estimated": 0, "basis": "Pasta and typical hard/soft cheeses have negligible vitamin D"},
+        {"name": "Lactose-free milk", "amount": "3 oz", "vitaminD_estimated": 43, "basis": "Fortified lactose-free milk ~115 IU/8oz → 3 oz ≈ 43 IU"},
+        {"name": "Chewy chocolate chip cookies", "amount": "5-6 cookies", "vitaminD_estimated": 0, "basis": "Cookies contain negligible vitamin D"},
+        {"name": "Blackberries", "amount": "0.5 oz", "vitaminD_estimated": 0, "basis": "Berries contain no vitamin D"},
+        {"name": "Chicken Leg (Cooked)", "amount": "5.2 oz", "vitaminD_estimated": 2, "basis": "~1 IU/oz cooked chicken leg"}
+      ],
+      "notes": ""
+    },
+    {
+      "date": "2026-03-06",
+      "totalVitaminD_estimated": 47,
+      "foods": [
+        {"name": "Pasta (angel hair) with cheese", "amount": "2.4 oz dry x2 daily", "vitaminD_estimated": 0, "basis": "Pasta and typical hard/soft cheeses have negligible vitamin D"},
+        {"name": "Lactose-free milk", "amount": "3 oz", "vitaminD_estimated": 43, "basis": "Fortified lactose-free milk ~115 IU/8oz → 3 oz ≈ 43 IU"},
+        {"name": "Chewy chocolate chip cookies", "amount": "5-6 cookies", "vitaminD_estimated": 0, "basis": "Cookies contain negligible vitamin D"},
+        {"name": "Blackberries", "amount": "0.5 oz", "vitaminD_estimated": 0, "basis": "Berries contain no vitamin D"},
+        {"name": "Chicken Leg (Cooked)", "amount": "2.2 oz", "vitaminD_estimated": 2, "basis": "~1 IU/oz cooked chicken leg"},
+        {"name": "Chicken Thigh (Raw)", "amount": "1.5 oz", "vitaminD_estimated": 2, "basis": "~1 IU/oz raw chicken thigh"}
+      ],
+      "notes": ""
+    },
+    {
+      "date": "2026-03-07",
+      "totalVitaminD_estimated": 50,
+      "foods": [
+        {"name": "Pasta (angel hair) with cheese", "amount": "2.4 oz dry x2 daily", "vitaminD_estimated": 0, "basis": "Pasta and typical hard/soft cheeses have negligible vitamin D"},
+        {"name": "Lactose-free milk", "amount": "3 oz", "vitaminD_estimated": 43, "basis": "Fortified lactose-free milk ~115 IU/8oz → 3 oz ≈ 43 IU"},
+        {"name": "Chewy chocolate chip cookies", "amount": "5-6 cookies", "vitaminD_estimated": 0, "basis": "Cookies contain negligible vitamin D"},
+        {"name": "Blackberries", "amount": "0.5 oz", "vitaminD_estimated": 0, "basis": "Berries contain no vitamin D"},
+        {"name": "Ground Beef (Cooked)", "amount": "6.7 oz", "vitaminD_estimated": 7, "basis": "~1 IU/oz cooked ground beef"}
+      ],
+      "notes": "Pasta 4oz everyday 2 times a day with some cheese angel hair / Lactose free milk 3 oz everyday with 5-6 cookies / 0.5 oz black berries"
+    },
+    {
+      "date": "2026-03-08",
+      "totalVitaminD_estimated": 43,
+      "foods": [
+        {"name": "Pasta (angel hair) with cheese", "amount": "2.4 oz dry x2 daily", "vitaminD_estimated": 0, "basis": "Pasta and typical hard/soft cheeses have negligible vitamin D"},
+        {"name": "Lactose-free milk", "amount": "3 oz", "vitaminD_estimated": 43, "basis": "Fortified lactose-free milk ~115 IU/8oz → 3 oz ≈ 43 IU"},
+        {"name": "Chewy chocolate chip cookies", "amount": "5-6 cookies", "vitaminD_estimated": 0, "basis": "Cookies contain negligible vitamin D"},
+        {"name": "Blackberries", "amount": "0.5 oz", "vitaminD_estimated": 0, "basis": "Berries contain no vitamin D"}
+      ],
+      "notes": ""
+    },
+    {
+      "date": "2026-03-09",
+      "totalVitaminD_estimated": 45,
+      "foods": [
+        {"name": "Pasta (angel hair) with cheese", "amount": "2.4 oz dry x2 daily", "vitaminD_estimated": 0, "basis": "Pasta and typical hard/soft cheeses have negligible vitamin D"},
+        {"name": "Lactose-free milk", "amount": "3 oz", "vitaminD_estimated": 43, "basis": "Fortified lactose-free milk ~115 IU/8oz → 3 oz ≈ 43 IU"},
+        {"name": "Chewy chocolate chip cookies", "amount": "5-6 cookies", "vitaminD_estimated": 0, "basis": "Cookies contain negligible vitamin D"},
+        {"name": "Blackberries", "amount": "0.5 oz", "vitaminD_estimated": 0, "basis": "Berries contain no vitamin D"},
+        {"name": "Chicken Leg (Cooked)", "amount": "5.6 oz", "vitaminD_estimated": 2, "basis": "~1 IU/oz cooked chicken leg"}
+      ],
+      "notes": ""
+    }
+  ],
+
+  "Oscar": [
+    {
+      "date": "2026-02-28",
+      "totalVitaminD_estimated": 181,
+      "foods": [
+        {
+          "name": "Salmon (Canned Drained)",
+          "amount": "1 oz",
+          "vitaminD_app": 164,
+          "vitaminD_estimated": 164,
+          "basis": "Canned salmon is among the richest sources; ~164 IU/oz aligns with USDA data"
+        },
+        {
+          "name": "Chicken Skin (Raw)",
+          "amount": "1 oz",
+          "vitaminD_app": 2,
+          "vitaminD_estimated": 2,
+          "basis": "~2 IU/oz raw chicken skin"
+        },
+        {
+          "name": "Milk Chocolate Reduced Fat (Fortified)",
+          "amount": "1 oz",
+          "vitaminD_app": 15,
+          "vitaminD_estimated": 15,
+          "basis": "Fortified milk chocolate ~15 IU/oz"
+        }
+      ],
+      "notes": ""
+    },
+    {
+      "date": "2026-03-04",
+      "totalVitaminD_estimated": 1042,
+      "foods": [
+        {
+          "name": "Egg Yolk (Raw)",
+          "amount": "1.2 oz",
+          "vitaminD_app": 42,
+          "vitaminD_estimated": 42,
+          "basis": "35 IU/oz raw egg yolk × 1.2 oz = 42 IU"
+        },
+        {
+          "name": "Vitamin D supplement pill",
+          "amount": "1 pill",
+          "vitaminD_app": null,
+          "vitaminD_estimated": 1000,
+          "source": "notes",
+          "basis": "User stated '1000 IU pill'"
+        }
+      ],
+      "notes": "1000 IU pill"
+    },
+    {
+      "date": "2026-03-05",
+      "totalVitaminD_estimated": 1080,
+      "foods": [
+        {
+          "name": "Egg Yolk (Raw) #1",
+          "amount": "0.7 oz",
+          "vitaminD_app": 25,
+          "vitaminD_estimated": 25,
+          "basis": "35 IU/oz × 0.7 oz ≈ 25 IU"
+        },
+        {
+          "name": "Pork Sausage (Raw) #1",
+          "amount": "1.2 oz",
+          "vitaminD_app": 6,
+          "vitaminD_estimated": 6,
+          "basis": "~5 IU/oz raw pork sausage × 1.2 oz = 6 IU"
+        },
+        {
+          "name": "Egg Yolk (Raw) #2",
+          "amount": "0.7 oz",
+          "vitaminD_app": 25,
+          "vitaminD_estimated": 25,
+          "basis": "35 IU/oz × 0.7 oz ≈ 25 IU"
+        },
+        {
+          "name": "Pork Sausage (Raw) #2",
+          "amount": "1.2 oz",
+          "vitaminD_app": 6,
+          "vitaminD_estimated": 6,
+          "basis": "5 IU/oz × 1.2 oz = 6 IU"
+        },
+        {
+          "name": "Milk Chocolate Whole (Fortified)",
+          "amount": "1 oz",
+          "vitaminD_app": 16,
+          "vitaminD_estimated": 16,
+          "basis": "Fortified whole milk chocolate ~16 IU/oz"
+        },
+        {
+          "name": "Stewed Chicken (Stewed)",
+          "amount": "6 oz",
+          "vitaminD_app": 0,
+          "vitaminD_estimated": 0,
+          "basis": "Stewed chicken contains negligible vitamin D per USDA"
+        },
+        {
+          "name": "Sour Cream (Prepared)",
+          "amount": "1 oz",
+          "vitaminD_app": 2,
+          "vitaminD_estimated": 2,
+          "basis": "~2 IU/oz sour cream"
+        },
+        {
+          "name": "Vitamin D supplement pill",
+          "amount": "1 pill (~1000 IU assumed)",
+          "vitaminD_app": null,
+          "vitaminD_estimated": 1000,
+          "source": "notes",
+          "basis": "User noted 'vD pill'; standard OTC dose assumed 1000 IU"
+        }
+      ],
+      "notes": "vD pill"
+    },
+    {
+      "date": "2026-03-06",
+      "totalVitaminD_estimated": 1584,
+      "foods": [
+        {
+          "name": "Salmon (Canned Drained)",
+          "amount": "6 oz",
+          "vitaminD_app": 984,
+          "vitaminD_estimated": 984,
+          "basis": "164 IU/oz × 6 oz = 984 IU"
+        },
+        {
+          "name": "Sushi (~30 pieces, mostly raw fish)",
+          "amount": "~30 pieces (~15 oz fish total)",
+          "vitaminD_app": null,
+          "vitaminD_estimated": 600,
+          "source": "notes",
+          "basis": "30 pieces ≈ 15 oz fish; salmon-heavy estimate ~40 IU/oz avg → ~600 IU. High uncertainty — could range 300–1500 IU depending on fish mix."
+        }
+      ],
+      "notes": "had ~ 30 pieces of sushi, mostly raw fish"
+    },
+    {
+      "date": "2026-03-07",
+      "totalVitaminD_estimated": 1283,
+      "foods": [
+        {
+          "name": "Egg Yolk (Raw)",
+          "amount": "1 oz",
+          "vitaminD_app": 35,
+          "vitaminD_estimated": 35,
+          "basis": "35 IU/oz × 1 oz = 35 IU"
+        },
+        {
+          "name": "American Cheese (Fortified)",
+          "amount": "0.5 oz",
+          "vitaminD_app": 43,
+          "vitaminD_estimated": 43,
+          "basis": "App uses 85 IU/oz × 0.5 oz = 42.5 IU; fortified processed American cheese is in this range"
+        },
+        {
+          "name": "Pork Sausage (Raw)",
+          "amount": "2 oz",
+          "vitaminD_app": 10,
+          "vitaminD_estimated": 10,
+          "basis": "5 IU/oz × 2 oz = 10 IU"
+        },
+        {
+          "name": "Fried Chicken (Cooked Fried)",
+          "amount": "10 oz",
+          "vitaminD_app": 20,
+          "vitaminD_estimated": 20,
+          "basis": "2 IU/oz × 10 oz = 20 IU"
+        },
+        {
+          "name": "Egg Yolk (Raw)",
+          "amount": "2 oz",
+          "vitaminD_app": 70,
+          "vitaminD_estimated": 70,
+          "basis": "35 IU/oz × 2 oz = 70 IU"
+        },
+        {
+          "name": "Pork Sausage (Raw)",
+          "amount": "1 oz",
+          "vitaminD_app": 5,
+          "vitaminD_estimated": 5,
+          "basis": "5 IU/oz × 1 oz = 5 IU"
+        },
+        {
+          "name": "Oat milk latte",
+          "amount": "~1 cup oat milk",
+          "vitaminD_app": null,
+          "vitaminD_estimated": 100,
+          "source": "notes",
+          "basis": "Fortified oat milk ~100–120 IU/cup"
+        },
+        {
+          "name": "Vitamin D supplement pill",
+          "amount": "1 pill (~1000 IU assumed)",
+          "vitaminD_app": null,
+          "vitaminD_estimated": 1000,
+          "source": "notes",
+          "basis": "User noted 'vD pill'; standard OTC dose assumed 1000 IU"
+        }
+      ],
+      "notes": "oat milk latte / vD pill"
+    },
+    {
+      "date": "2026-03-08",
+      "totalVitaminD_estimated": 83,
+      "foods": [
+        {
+          "name": "Pork Loin (Cooked)",
+          "amount": "1 oz",
+          "vitaminD_app": 15,
+          "vitaminD_estimated": 15,
+          "basis": "App uses 15 IU/oz; USDA is ~5–7 IU/oz for lean loin — flagging possible overestimate in app"
+        },
+        {
+          "name": "American Cheese (Fortified)",
+          "amount": "0.8 oz",
+          "vitaminD_app": 68,
+          "vitaminD_estimated": 68,
+          "basis": "85 IU/oz × 0.8 oz = 68 IU"
+        },
+        {
+          "name": "Stewed Chicken (Stewed)",
+          "amount": "5 oz",
+          "vitaminD_app": 0,
+          "vitaminD_estimated": 0,
+          "basis": "Stewed chicken negligible vitamin D"
+        }
+      ],
+      "notes": "chipotle double chicken for lunch"
+    },
+    {
+      "date": "2026-03-09",
+      "totalVitaminD_estimated": 64,
+      "foods": [
+        {
+          "name": "Pork Sausage (Raw)",
+          "amount": "1 oz",
+          "vitaminD_app": 5,
+          "vitaminD_estimated": 5,
+          "basis": "5 IU/oz × 1 oz = 5 IU"
+        },
+        {
+          "name": "American Cheese (Fortified)",
+          "amount": "0.5 oz",
+          "vitaminD_app": 43,
+          "vitaminD_estimated": 43,
+          "basis": "85 IU/oz × 0.5 oz ≈ 43 IU"
+        },
+        {
+          "name": "Chipotle double chicken (dinner)",
+          "amount": "~6–8 oz cooked chicken",
+          "vitaminD_app": null,
+          "vitaminD_estimated": 16,
+          "source": "notes",
+          "basis": "Double chicken at Chipotle ≈ 6–8 oz; ~2 IU/oz × 8 oz = 16 IU"
+        }
+      ],
+      "notes": "chipotle double chicken for dinner"
+    },
+    {
+      "date": "2026-03-10",
+      "totalVitaminD_estimated": 282,
+      "foods": [
+        {
+          "name": "Bowl of eggs",
+          "amount": "~4 eggs",
+          "vitaminD_app": null,
+          "vitaminD_estimated": 176,
+          "source": "notes",
+          "basis": "~4 whole eggs × 44 IU/egg = 176 IU"
+        },
+        {
+          "name": "Morning sandwich",
+          "amount": "1 sandwich (est. egg + cheese + bread)",
+          "vitaminD_app": null,
+          "vitaminD_estimated": 50,
+          "source": "notes",
+          "basis": "Egg ~44 IU + possible fortified cheese ~6 IU + bread ~0 IU ≈ 50 IU"
+        },
+        {
+          "name": "Chicken breast",
+          "amount": "~4 oz",
+          "vitaminD_app": null,
+          "vitaminD_estimated": 8,
+          "source": "notes",
+          "basis": "Cooked chicken breast ~2 IU/oz × 4 oz = 8 IU"
+        },
+        {
+          "name": "Burger patty (beef)",
+          "amount": "~3 oz",
+          "vitaminD_app": null,
+          "vitaminD_estimated": 3,
+          "source": "notes",
+          "basis": "Cooked ground beef ~1 IU/oz × 3 oz = 3 IU"
+        },
+        {
+          "name": "Pork loin",
+          "amount": "~3 oz",
+          "vitaminD_app": null,
+          "vitaminD_estimated": 45,
+          "source": "notes",
+          "basis": "Using app rate 15 IU/oz × 3 oz = 45 IU"
+        }
+      ],
+      "notes": "one bowl of eggs / one morning sandwich / one chicken breast / one burger meat / pork loin"
+    }
+  ],
+
+  "vi_pdf": [
+    {
+      "date": "2026-03-04",
+      "totalVitaminD_estimated": 2328,
+      "foods": [
+        {
+          "name": "Whole milk latte",
+          "amount": "1 cup",
+          "meal": "breakfast",
+          "vitaminD_estimated": 115,
+          "basis": "Fortified whole milk ~115 IU/cup"
+        },
+        {
+          "name": "Vitamin D3 gummies",
+          "amount": "x2 (50 mcg = 2000 IU)",
+          "meal": "breakfast",
+          "vitaminD_estimated": 2000,
+          "basis": "Stated explicitly in log"
+        },
+        {
+          "name": "Bowl of curry with some chicken",
+          "amount": "~2 oz chicken est.",
+          "meal": "lunch",
+          "vitaminD_estimated": 4,
+          "basis": "Curry sauce ~0 IU; chicken ~2 IU/oz × 2 oz = 4 IU"
+        },
+        {
+          "name": "Additional chicken leg",
+          "amount": "~3 oz",
+          "meal": "lunch",
+          "vitaminD_estimated": 6,
+          "basis": "Cooked chicken leg ~2 IU/oz × 3 oz = 6 IU"
+        },
+        {
+          "name": "Bowl of cabbage",
+          "amount": "1 bowl",
+          "meal": "lunch",
+          "vitaminD_estimated": 0,
+          "basis": "Vegetables contain no vitamin D"
+        },
+        {
+          "name": "Latte (milk + espresso)",
+          "amount": "~1 cup milk",
+          "meal": "lunch",
+          "vitaminD_estimated": 115,
+          "basis": "Fortified whole milk ~115 IU/cup"
+        },
+        {
+          "name": "Walnuts",
+          "amount": "~1 oz",
+          "meal": "dinner",
+          "vitaminD_estimated": 0,
+          "basis": "Nuts contain no vitamin D"
+        },
+        {
+          "name": "Eggs (fried)",
+          "amount": "2 eggs",
+          "meal": "dinner",
+          "vitaminD_estimated": 88,
+          "basis": "Whole egg fried ~44 IU × 2 = 88 IU"
+        },
+        {
+          "name": "Carrots",
+          "amount": "1 serving",
+          "meal": "dinner",
+          "vitaminD_estimated": 0,
+          "basis": "Vegetables contain no vitamin D"
+        },
+        {
+          "name": "Choya plum wine (diluted)",
+          "amount": "1 cup",
+          "meal": "dinner",
+          "vitaminD_estimated": 0,
+          "basis": "Wine/alcohol contains no vitamin D"
+        }
+      ]
+    },
+    {
+      "date": "2026-03-05",
+      "totalVitaminD_estimated": 2300,
+      "foods": [
+        {
+          "name": "Broccoli",
+          "amount": "1 serving",
+          "meal": "breakfast",
+          "vitaminD_estimated": 0,
+          "basis": "Vegetables contain no vitamin D"
+        },
+        {
+          "name": "Carrots",
+          "amount": "1 serving",
+          "meal": "breakfast",
+          "vitaminD_estimated": 0,
+          "basis": "Vegetables contain no vitamin D"
+        },
+        {
+          "name": "Latte",
+          "amount": "~1 cup milk",
+          "meal": "breakfast",
+          "vitaminD_estimated": 115,
+          "basis": "Fortified milk ~115 IU/cup"
+        },
+        {
+          "name": "Bowl of rice + seasoning",
+          "amount": "1 bowl",
+          "meal": "breakfast",
+          "vitaminD_estimated": 0,
+          "basis": "Rice and seasonings contain no vitamin D"
+        },
+        {
+          "name": "Oat bar (Vitamin D 20% daily serving)",
+          "amount": "1 bar",
+          "meal": "snack",
+          "vitaminD_estimated": 160,
+          "basis": "20% of FDA daily value (800 IU) = 160 IU"
+        },
+        {
+          "name": "Vitamin D3 gummies",
+          "amount": "x2 (50 mcg = 2000 IU)",
+          "meal": "snack",
+          "vitaminD_estimated": 2000,
+          "basis": "Stated explicitly in log"
+        },
+        {
+          "name": "Miso soup with tofu, broccoli, kelp",
+          "amount": "1 bowl",
+          "meal": "dinner",
+          "vitaminD_estimated": 5,
+          "basis": "Tofu/kelp/miso all negligible; ~5 IU trace"
+        },
+        {
+          "name": "Orange chicken (2 servings) + rice",
+          "amount": "2 servings (~6 oz chicken)",
+          "meal": "dinner",
+          "vitaminD_estimated": 20,
+          "basis": "Sauce ~0 IU; chicken ~3 IU/oz × 6 oz ≈ 20 IU (breading reduces density)"
+        },
+        {
+          "name": "Zero sugar cherry cola soda",
+          "amount": "1 can",
+          "meal": "dinner",
+          "vitaminD_estimated": 0,
+          "basis": "Soda contains no vitamin D (user also confirmed)"
+        }
+      ]
+    },
+    {
+      "date": "2026-03-06",
+      "totalVitaminD_estimated": 2017,
+      "foods": [
+        {
+          "name": "Vitamin D3 gummies",
+          "amount": "x2 (50 mcg = 2000 IU)",
+          "meal": "breakfast",
+          "vitaminD_estimated": 2000,
+          "basis": "Stated explicitly in log"
+        },
+        {
+          "name": "Miso soup + steamed cabbage",
+          "amount": "1 bowl",
+          "meal": "dinner",
+          "vitaminD_estimated": 2,
+          "basis": "Miso paste has trace vitamin D ~2 IU; cabbage ~0"
+        },
+        {
+          "name": "Cutie (clementine)",
+          "amount": "1 fruit",
+          "meal": "dinner",
+          "vitaminD_estimated": 0,
+          "basis": "Citrus fruit contains no vitamin D"
+        },
+        {
+          "name": "Chicken + mushrooms (oyster/soy sauce)",
+          "amount": "~3 oz chicken + mushrooms",
+          "meal": "dinner",
+          "vitaminD_estimated": 10,
+          "basis": "Chicken ~2 IU/oz × 3 oz = 6 IU; button mushrooms ~2–4 IU; sauce negligible → ~10 IU"
+        },
+        {
+          "name": "Brownie",
+          "amount": "1 piece",
+          "meal": "dinner",
+          "vitaminD_estimated": 5,
+          "basis": "Brownie contains egg + butter; ~1 egg worth of yolk → ~5 IU"
+        }
+      ]
+    },
+    {
+      "date": "2026-03-07",
+      "totalVitaminD_estimated": 362,
+      "foods": [
+        {
+          "name": "Eggs",
+          "amount": "2 eggs",
+          "meal": "breakfast",
+          "vitaminD_estimated": 88,
+          "basis": "Whole egg ~44 IU × 2 = 88 IU"
+        },
+        {
+          "name": "Latte (whole milk)",
+          "amount": "~1 cup milk",
+          "meal": "breakfast",
+          "vitaminD_estimated": 115,
+          "basis": "Fortified whole milk ~115 IU/cup"
+        },
+        {
+          "name": "Toast",
+          "amount": "2 pieces",
+          "meal": "breakfast",
+          "vitaminD_estimated": 0,
+          "basis": "Standard bread contains negligible vitamin D"
+        },
+        {
+          "name": "Zero sugar cherry cola soda",
+          "amount": "1 can",
+          "meal": "snack",
+          "vitaminD_estimated": 0,
+          "basis": "Soda contains no vitamin D"
+        },
+        {
+          "name": "Cabbage",
+          "amount": "1 bowl",
+          "meal": "lunch",
+          "vitaminD_estimated": 0,
+          "basis": "Vegetables contain no vitamin D"
+        },
+        {
+          "name": "Chicken (boiled and airfried)",
+          "amount": "~4 oz",
+          "meal": "lunch",
+          "vitaminD_estimated": 8,
+          "basis": "Cooked chicken ~2 IU/oz × 4 oz = 8 IU"
+        },
+        {
+          "name": "Eggs",
+          "amount": "2 eggs",
+          "meal": "lunch",
+          "vitaminD_estimated": 88,
+          "basis": "Whole egg ~44 IU × 2 = 88 IU"
+        },
+        {
+          "name": "Chocolate",
+          "amount": "2 pieces",
+          "meal": "snack",
+          "vitaminD_estimated": 2,
+          "basis": "Chocolate has negligible vitamin D; ~1 IU/piece"
+        },
+        {
+          "name": "Chicken leg",
+          "amount": "~3 oz",
+          "meal": "snack",
+          "vitaminD_estimated": 6,
+          "basis": "Cooked chicken leg ~2 IU/oz × 3 oz = 6 IU"
+        },
+        {
+          "name": "Ramen with romaine lettuce and egg",
+          "amount": "1 bowl + 1 egg",
+          "meal": "dinner",
+          "vitaminD_estimated": 55,
+          "basis": "Ramen noodles/broth ~10 IU (may be fortified); romaine ~0; egg ~44 IU → ~55 IU"
+        }
+      ]
+    },
+    {
+      "date": "2026-03-08",
+      "totalVitaminD_estimated": 130,
+      "foods": [
+        {
+          "name": "Latte",
+          "amount": "~1 cup milk",
+          "meal": "breakfast",
+          "vitaminD_estimated": 115,
+          "basis": "Fortified milk ~115 IU/cup"
+        },
+        {
+          "name": "Barley soup with beef bouillon",
+          "amount": "1 bowl",
+          "meal": "breakfast",
+          "vitaminD_estimated": 0,
+          "basis": "Barley and bouillon contain no vitamin D"
+        },
+        {
+          "name": "Bag of popcorn",
+          "amount": "1 bag",
+          "meal": "snack",
+          "vitaminD_estimated": 0,
+          "basis": "Popcorn contains no vitamin D"
+        },
+        {
+          "name": "Cherry cola soda",
+          "amount": "1 can",
+          "meal": "snack",
+          "vitaminD_estimated": 0,
+          "basis": "Soda contains no vitamin D"
+        },
+        {
+          "name": "Barley soup with beef bouillon",
+          "amount": "1 bowl",
+          "meal": "lunch",
+          "vitaminD_estimated": 0,
+          "basis": "Barley and bouillon contain no vitamin D"
+        },
+        {
+          "name": "Powdered doughnut hole",
+          "amount": "1 piece",
+          "meal": "snack",
+          "vitaminD_estimated": 0,
+          "basis": "Pastry has negligible vitamin D"
+        },
+        {
+          "name": "Chipotle chicken bowl",
+          "amount": "1 bowl (~5 oz chicken est.)",
+          "meal": "dinner",
+          "vitaminD_estimated": 15,
+          "basis": "Chipotle chicken ~3 IU/oz × 5 oz ≈ 15 IU; rice/beans/veggies ~0"
+        }
+      ]
+    },
+    {
+      "date": "2026-03-09",
+      "totalVitaminD_estimated": 2173,
+      "foods": [
+        {
+          "name": "Milk + cereal",
+          "amount": "~1 cup milk + 1 serving fortified cereal",
+          "meal": "breakfast",
+          "vitaminD_estimated": 155,
+          "basis": "Fortified whole milk ~115 IU/cup + fortified cereal ~40 IU/serving = 155 IU"
+        },
+        {
+          "name": "Cabbage",
+          "amount": "1 bowl",
+          "meal": "breakfast",
+          "vitaminD_estimated": 0,
+          "basis": "Vegetables contain no vitamin D"
+        },
+        {
+          "name": "Steamed + airfried chicken",
+          "amount": "~4 oz",
+          "meal": "breakfast",
+          "vitaminD_estimated": 8,
+          "basis": "Cooked chicken ~2 IU/oz × 4 oz = 8 IU"
+        },
+        {
+          "name": "Vitamin D gummies",
+          "amount": "x2 (2000 IU)",
+          "meal": "snack",
+          "vitaminD_estimated": 2000,
+          "basis": "Same gummies as previous days = 2000 IU"
+        },
+        {
+          "name": "Habibi grill — chicken",
+          "amount": "~3 oz",
+          "meal": "dinner",
+          "vitaminD_estimated": 6,
+          "basis": "Grilled chicken ~2 IU/oz × 3 oz = 6 IU"
+        },
+        {
+          "name": "Gyros (lamb/beef)",
+          "amount": "~2 oz",
+          "meal": "dinner",
+          "vitaminD_estimated": 4,
+          "basis": "Gyro meat ~2 IU/oz × 2 oz = 4 IU"
+        },
+        {
+          "name": "Yellow rice with salsa",
+          "amount": "1 serving",
+          "meal": "dinner",
+          "vitaminD_estimated": 0,
+          "basis": "Rice and salsa contain no vitamin D"
+        },
+        {
+          "name": "Green onions",
+          "amount": "small amount",
+          "meal": "dinner",
+          "vitaminD_estimated": 0,
+          "basis": "Vegetables contain no vitamin D"
+        }
+      ]
+    }
+  ]
+}
