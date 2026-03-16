@@ -143,11 +143,14 @@ def read_uv_log(filepath: str | Path) -> dict:
     if not filepath.exists():
         raise FileNotFoundError(f"UV log not found: {filepath}")
 
-    sed_totals   = {col: 0.0 for col in SED_COLUMNS}
-    uvb_total    = 0.0
+    from datetime import datetime, timezone
+
+    sed_totals    = {col: 0.0 for col in SED_COLUMNS}
+    uvb_total     = 0.0
     sed_raw_total = 0.0
     outdoor_count = 0
-    n_rows       = 0
+    n_rows        = 0
+    first_ts      = None
 
     import io
     with open(filepath, newline="", encoding="utf-8") as fh:
@@ -155,6 +158,12 @@ def read_uv_log(filepath: str | Path) -> dict:
     reader = csv.DictReader(io.StringIO(content))
     for row in reader:
             n_rows += 1
+
+            # Capture first valid timestamp to derive calendar date
+            if first_ts is None:
+                ts_val = _safe_float(row.get("timestamp", ""))
+                if ts_val:
+                    first_ts = ts_val
 
             # Environmental UV
             uvb_total     += _safe_float(row.get("uvb",     "0"))
@@ -169,6 +178,12 @@ def read_uv_log(filepath: str | Path) -> dict:
             if io_val in ("1", "1.0", "True", "true", "outdoor"):
                 outdoor_count += 1
 
+    # Derive calendar date from first timestamp
+    if first_ts:
+        date_str = datetime.fromtimestamp(first_ts, tz=timezone.utc).strftime("%Y-%m-%d")
+    else:
+        date_str = None
+
     # Dose-area weighted effective input: Σ_i (SED_i * BSA_fraction_i)
     # BSA_fraction_i = BSA_weight[i] / 100  (convert % to decimal)
     effective_dose = sum(
@@ -178,6 +193,7 @@ def read_uv_log(filepath: str | Path) -> dict:
 
     return {
         "filepath":         str(filepath),
+        "date":             date_str,
         "uvb_j_m2":         uvb_total,
         "sed_raw":          sed_raw_total,
         "sed_by_part":      dict(sed_totals),
@@ -224,15 +240,21 @@ def load_subject_logs(
     if not log_dir.is_dir():
         raise NotADirectoryError(f"Log directory not found: {log_dir}")
 
-    # Collect candidate files
-    csv_files = sorted(log_dir.glob("*_UV_LOG.csv"))
+    # Collect candidate files — support both day-numbered (day1_UV_LOG.csv)
+    # and legacy date-prefixed (YYYY-MM-DD_UV_LOG.csv) naming.
+    day_files = sorted(
+        log_dir.glob("day*_UV_LOG.csv"),
+        key=lambda p: int(p.name.split("_")[0].replace("day", "")),
+    )
 
-    if date_range is not None:
-        date_set   = set(date_range)
-        csv_files  = [
-            f for f in csv_files
-            if f.name[:10] in date_set   # file names start with YYYY-MM-DD
-        ]
+    if day_files:
+        csv_files = day_files
+    else:
+        # Fall back to legacy date-based naming
+        csv_files = sorted(log_dir.glob("*_UV_LOG.csv"))
+        if date_range is not None:
+            date_set  = set(date_range)
+            csv_files = [f for f in csv_files if f.name[:10] in date_set]
 
     if not csv_files:
         raise FileNotFoundError(
@@ -308,7 +330,7 @@ def print_log_summary(daily_logs: list[dict], subject_name: str = "", file=None)
 if __name__ == "__main__":
     import sys
 
-    DATA_ROOT = Path(__file__).parent / "data"
+    DATA_ROOT = Path(__file__).parent / "data_resampled"
 
     # Map subject labels to their log subdirectories
     SUBJECTS = {

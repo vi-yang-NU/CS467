@@ -578,44 +578,34 @@ def simulate_subject_from_logs(
 # ORAL DOSE LOADER
 # =============================================================================
 
-def load_oral_doses_from_json(json_path, subject_key: str, date_range: list) -> list:
+def load_oral_doses_from_json(json_path, subject_key: str, dates: list) -> list:
     """
     Load daily oral vitamin D intakes from vitaminD-mapped.json.
 
     The JSON stores ``totalVitaminD_estimated`` in IU per day.
     This function converts to µg (÷ 40) to match the model's expected units.
 
-    Days in ``date_range`` that have no entry in the JSON fall back to 0.0 µg.
-
     Parameters
     ----------
     json_path   : str or Path — path to vitaminD-mapped.json.
-    subject_key : str         — top-level key in the JSON
-                                ("Nicole", "Oscar", or "vi_pdf").
-    date_range  : list[str]   — ordered list of "YYYY-MM-DD" strings that
-                                define the simulation window.
+    subject_key : str         — top-level key in the JSON.
+    dates       : list[str]   — calendar dates ("YYYY-MM-DD") derived from
+                                the UV log file timestamps, one per day.
 
     Returns
     -------
     list[float]
-        Oral dose in µg/day for each date in date_range.
+        Oral dose in µg/day for each date, length len(dates).
     """
     import json
 
     with open(json_path, "r", encoding="utf-8") as fh:
         data = json.load(fh)
 
-    subject_records = data.get(subject_key, [])
-    # Build a quick date → IU lookup
-    iu_by_date = {rec["date"]: rec["totalVitaminD_estimated"]
-                  for rec in subject_records}
+    iu_by_date = {rec["date"]: rec.get("totalVitaminD_estimated", 0.0) or 0.0
+                  for rec in data.get(subject_key, [])}
 
-    oral_ug = []
-    for date_str in date_range:
-        iu = iu_by_date.get(date_str, 0.0)
-        oral_ug.append(iu / 40.0)   # 1 µg = 40 IU
-
-    return oral_ug
+    return [iu_by_date.get(d, 0.0) / 40.0 for d in dates]
 
 
 # =============================================================================
@@ -638,16 +628,13 @@ if __name__ == "__main__":
     # vitaminD-mapped.json — oral intake source (IU → µg conversion inside
     # load_oral_doses_from_json).  Expected to live next to this script.
     # -------------------------------------------------------------------------
-    ORAL_JSON = SCRIPT_DIR / "vitaminD-mapped.json"
+    ORAL_JSON    = SCRIPT_DIR / "vitaminD-mapped.json"
+    SCENARIO_UV_JSON = SCRIPT_DIR / "surface.json"
 
-    DATE_RANGE = [
-        "2026-03-04",
-        "2026-03-05",
-        "2026-03-06",
-        "2026-03-07",
-        "2026-03-08",
-        "2026-03-09",
-    ]
+    # ---- Switch between real sensor data and scenario_exposure.json ----
+    # Set USE_SCENARIO_UV = True  to use scenario_exposure.json for UV doses
+    # Set USE_SCENARIO_UV = False to use the real resampled CSV sensor logs
+    USE_SCENARIO_UV = True
 
     def run_all(out):
         """Run all simulations, writing every print() to `out`."""
@@ -656,37 +643,49 @@ if __name__ == "__main__":
         # PATH A — Sensor data available
         # =====================================================================
         try:
+            import json as _json
             from data_loader import load_subject_logs, print_log_summary
 
-            DATA_ROOT = Path(__file__).parent / "data"
+            DATA_ROOT = Path(__file__).parent / "data_resampled"
 
-            # ------------------------------------------------------------------
-            # subject_key must match a top-level key in vitaminD-mapped.json
-            # ------------------------------------------------------------------
             sensor_subjects = [
                 ("Oscar  -- Subject A -- ~21 y/o, Fitzpatrick II",
-                 DATA_ROOT / "uv oscar",        "Oscar",   21, 2, 50.0),
+                 DATA_ROOT / "uv oscar",        "Oscar",   23, 2, 50.0),
                 ("Nicole -- Subject B -- ~20 y/o, Fitzpatrick II",
                  DATA_ROOT / "Uv tests Nicole", "Nicole",  20, 2, 50.0),
                 ("Subject C -- vi_logs",
                  DATA_ROOT / "vi_logs",         "vi_pdf",  22, 3, 50.0),
             ]
 
+            # Load scenario UV data once if needed
+            scenario_uv_data = {}
+            if USE_SCENARIO_UV and SCENARIO_UV_JSON.exists():
+                with open(SCENARIO_UV_JSON) as fh:
+                    scenario_uv_data = _json.load(fh)
+                print(f"[INFO] Using scenario UV data from {SCENARIO_UV_JSON.name}\n", file=out)
+
             for name, log_dir, subject_key, age, fitz, C0 in sensor_subjects:
                 if not log_dir.is_dir():
                     print(f"[SKIP] Log directory not found: {log_dir}", file=out)
                     continue
 
-                logs = load_subject_logs(log_dir, date_range=DATE_RANGE)
-
-                # Load per-day oral doses from JSON, trimmed to actual log length
-                oral = load_oral_doses_from_json(ORAL_JSON, subject_key, DATE_RANGE[:len(logs)])
+                logs  = load_subject_logs(log_dir)
+                dates = [d["date"] for d in logs]
+                oral  = load_oral_doses_from_json(ORAL_JSON, subject_key, dates)
 
                 print(
                     f"[INFO] {name}: loaded oral doses from JSON "
                     f"({len(oral)} days, key='{subject_key}')",
                     file=out,
                 )
+
+                # Patch sed_by_part from scenario_exposure.json if enabled
+                if USE_SCENARIO_UV and subject_key in scenario_uv_data:
+                    records_by_date = {r["date"]: r["sed_by_part"]
+                                       for r in scenario_uv_data[subject_key]}
+                    for log in logs:
+                        if log["date"] in records_by_date:
+                            log["sed_by_part"] = records_by_date[log["date"]]
 
                 print_log_summary(logs, subject_name=name, file=out)
                 simulate_subject_from_logs(
@@ -707,9 +706,9 @@ if __name__ == "__main__":
         # =====================================================================
         uvb_all = [300.0] * 6
 
-        # oral_oscar  = load_oral_doses_from_json(ORAL_JSON, "Oscar",   DATE_RANGE)
-        # oral_nicole = load_oral_doses_from_json(ORAL_JSON, "Nicole",  DATE_RANGE)
-        # oral_vi     = load_oral_doses_from_json(ORAL_JSON, "vi_pdf",  DATE_RANGE)
+        # oral_oscar  = load_oral_doses_from_json(ORAL_JSON, "Oscar",   dates_oscar)
+        # oral_nicole = load_oral_doses_from_json(ORAL_JSON, "Nicole",  dates_nicole)
+        # oral_vi     = load_oral_doses_from_json(ORAL_JSON, "vi_pdf",  dates_vi)
 
         # simulate_subject(
         #     name          = "Subject A -- 21 y/o, Fitzpatrick II  [legacy]",

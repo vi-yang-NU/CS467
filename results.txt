@@ -1,87 +1,16 @@
-vitamin_d_model.py  —  results generated 2026-03-12 16:30:02
+vitamin_d_model.py  —  results generated 2026-03-16 14:43:56
 
-[INFO] Oscar  -- Subject A -- ~21 y/o, Fitzpatrick II: loaded oral doses from JSON (5 days, key='Oscar')
+[INFO] Using scenario UV data from surface.json
+
+[INFO] Oscar  -- Subject A -- ~21 y/o, Fitzpatrick II: loaded oral doses from JSON (6 days, key='Oscar')
 ======================================================================
   Subject: Oscar  -- Subject A -- ~21 y/o, Fitzpatrick II
    Day                            File   Rows    Eff.Dose   %Outdoor
   ---------------------------------------------------------------
-     0           2026-03-05_UV_LOG.csv  61132      0.0448       0.0%
-     1           2026-03-06_UV_LOG.csv  18729      0.0008       0.0%
-     2           2026-03-07_UV_LOG.csv  19349      0.0689       0.0%
-     3           2026-03-08_UV_LOG.csv  12963      0.6471       0.0%
-     4           2026-03-09_UV_LOG.csv  26772      0.1931       1.9%
-
-=================================================================
-  Oscar  -- Subject A -- ~21 y/o, Fitzpatrick II
-    Age              : 21 years
-    Fitzpatrick type : 2
-    f_age            : 0.987
-    f_skin           : 1.000
-    Initial 25(OH)D  : 50.0 nmol/L  (WARNING: assumed)
-=================================================================
-   Day   Oral(ug)     D_eff   %Outdoor   C_total(nmol/L)
-  ---------------------------------------------------------
-     0       26.1    0.0448       0.0%             50.53
-     1       27.0    0.0008       0.0%             50.97
-     2       39.6    0.0689       0.0%             52.00
-     3       32.1    0.6471       0.0%             57.22
-     4        2.1    0.1931       1.9%             60.13
-
-[INFO] Nicole -- Subject B -- ~20 y/o, Fitzpatrick II: loaded oral doses from JSON (6 days, key='Nicole')
-======================================================================
-  Subject: Nicole -- Subject B -- ~20 y/o, Fitzpatrick II
-   Day                            File   Rows    Eff.Dose   %Outdoor
-  ---------------------------------------------------------------
-     0           2026-03-04_UV_LOG.csv   7737      0.0000       0.0%
-     1           2026-03-05_UV_LOG.csv  27259      0.0984       0.0%
-     2           2026-03-06_UV_LOG.csv  21594      0.0000       0.0%
-     3           2026-03-07_UV_LOG.csv  37245      0.1487       0.0%
-     4           2026-03-08_UV_LOG.csv  21176      0.0000       0.0%
-     5           2026-03-09_UV_LOG.csv  10521      0.0123       0.0%
-
-=================================================================
-  Nicole -- Subject B -- ~20 y/o, Fitzpatrick II
-    Age              : 20 years
-    Fitzpatrick type : 2
-    f_age            : 1.000
-    f_skin           : 1.000
-    Initial 25(OH)D  : 50.0 nmol/L  (WARNING: assumed)
-=================================================================
-   Day   Oral(ug)     D_eff   %Outdoor   C_total(nmol/L)
-  ---------------------------------------------------------
-     0        1.1    0.0000       0.0%             50.01
-     1        1.1    0.0984       0.0%             50.73
-     2        1.2    0.0000       0.0%             50.96
-     3        1.2    0.1487       0.0%             52.09
-     4        1.1    0.0000       0.0%             52.42
-     5        1.1    0.0123       0.0%             52.58
-
-[INFO] Subject C -- vi_logs: loaded oral doses from JSON (6 days, key='vi_pdf')
-======================================================================
-  Subject: Subject C -- vi_logs
-   Day                            File   Rows    Eff.Dose   %Outdoor
-  ---------------------------------------------------------------
-     0           2026-03-04_UV_LOG.csv   4063      0.0000       0.0%
-     1           2026-03-05_UV_LOG.csv  16068      0.0037       0.0%
-     2           2026-03-06_UV_LOG.csv  12937      0.0000       0.0%
-     3           2026-03-07_UV_LOG.csv  12993      0.0047       0.0%
-     4           2026-03-08_UV_LOG.csv  12595      0.0000       0.0%
-     5           2026-03-09_UV_LOG.csv  12922      0.1623       0.4%
-
-=================================================================
-  Subject C -- vi_logs
-    Age              : 22 years
-    Fitzpatrick type : 3
-    f_age            : 0.974
-    f_skin           : 0.741
-    Initial 25(OH)D  : 50.0 nmol/L  (WARNING: assumed)
-=================================================================
-   Day   Oral(ug)     D_eff   %Outdoor   C_total(nmol/L)
-  ---------------------------------------------------------
-     0       58.2    0.0000       0.0%             50.46
-     1       57.5    0.0037       0.0%             51.22
-     2       50.4    0.0000       0.0%             52.07
-     3        9.1    0.0047       0.0%             52.67
-     4        3.2    0.0000       0.0%             53.04
-     5       54.3    0.1623       0.4%             54.49
+     0                 day1_UV_LOG.csv  16334      0.0448       0.1%
+     1                 day2_UV_LOG.csv  12729      0.0008       0.0%
+     2                 day3_UV_LOG.csv  12853      0.0689       0.1%
+     3                 day4_UV_LOG.csv  12108      0.6471       0.0%
+     4                 day5_UV_LOG.csv  12578      0.1931       1.4%
+     5                 day6_UV_LOG.csv  11605      0.0557       0.2%
 
