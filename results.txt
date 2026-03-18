@@ -1,16 +1,2 @@
-vitamin_d_model.py  —  results generated 2026-03-16 14:43:56
-
-[INFO] Using scenario UV data from surface.json
-
-[INFO] Oscar  -- Subject A -- ~21 y/o, Fitzpatrick II: loaded oral doses from JSON (6 days, key='Oscar')
-======================================================================
-  Subject: Oscar  -- Subject A -- ~21 y/o, Fitzpatrick II
-   Day                            File   Rows    Eff.Dose   %Outdoor
-  ---------------------------------------------------------------
-     0                 day1_UV_LOG.csv  16334      0.0448       0.1%
-     1                 day2_UV_LOG.csv  12729      0.0008       0.0%
-     2                 day3_UV_LOG.csv  12853      0.0689       0.1%
-     3                 day4_UV_LOG.csv  12108      0.6471       0.0%
-     4                 day5_UV_LOG.csv  12578      0.1931       1.4%
-     5                 day6_UV_LOG.csv  11605      0.0557       0.2%
+vitamin_d_model.py  —  results generated 2026-03-18 10:10:44
 
