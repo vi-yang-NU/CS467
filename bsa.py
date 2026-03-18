@@ -251,25 +251,25 @@ if __name__ == "__main__":
     surveys_A = [
         {"head": True, "hands": True},                   # day 0
         {"head": True, "hands": True},                   # day 1
-        {},                                              # day 2 — indoors
+        {"head": True, "hands": True},                                              # day 2 — indoors
         {"head": True, "hands": True},                   # day 3
-        {},                                              # day 4 — indoors
+        {"head": True, "hands": True},                                              # day 4 — indoors
         {"head": True, "hands": True},                   # day 5
     ]
     surveys_B = [
         {"head": True, "hands": True},
-        {},
         {"head": True, "hands": True},
         {"head": True, "hands": True},
-        {},
+        {"head": True, "hands": True},
+        {"head": True, "hands": True},
         {"head": True, "hands": True},
     ]
     surveys_C = [
-        {},
+        {"head": True, "hands": True},
+        {"head": False, "hands": False},
         {"head": True, "hands": True},
         {"head": True, "hands": True},
-        {},
-        {"head": True, "hands": True, "forearms": True},
+        {"head": True, "hands": True},
         {"head": True, "hands": True},
     ]
 
